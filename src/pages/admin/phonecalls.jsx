@@ -1,917 +1,3338 @@
-import { useState, useEffect, useRef } from "react";
-import { Phone, MapPin, Trash2, Search } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+
+// "use client";
+
+// import React, { useEffect, useMemo, useRef, useState } from "react";
+// import {
+//   Phone,
+//   PlayCircle,
+//   RefreshCw,
+//   Search,
+//   Filter,
+//   Loader2,
+//   X,
+//   Trash2,
+//   FileAudio,
+//   Info,
+//   Clock,
+//   DollarSign,
+//   CheckCircle2,
+//   AlertTriangle,
+//   Download,
+//   Radio,
+// } from "lucide-react";
+// import { toast } from "react-toastify";
+
+// /* ──────────────────────────────────────────────────────────────────────────
+//  * Config
+//  * ────────────────────────────────────────────────────────────────────────── */
+// const API_URL = import.meta.env?.VITE_API_URL || "http://localhost:8000";
+// // If your FastAPI router is mounted under /api, keep this as-is.
+// // Adjust to match your server (e.g., "/api/calls" or just "").
+// const API_BASE = `${API_URL}/api`;
+
+// const COLORS = {
+//   bg: "#0B1020",          // deep navy
+//   panel: "#0F1629",       // dark slate
+//   card: "#111A33",        // card surface
+//   border: "#21304f",      // border tint
+//   text: "#E5E7EB",        // gray-200
+//   dim: "#9CA3AF",         // gray-400
+//   primary: "#6D6AFB",     // indigo-ish neon
+//   success: "#22C55E",     // green-500
+//   danger: "#EF4444",      // red-500
+//   amber: "#F59E0B",       // amber-500
+//   cyan: "#22D3EE",        // cyan-400
+// };
+
+// /* Small helpers */
+// const cx = (...arr) => arr.filter(Boolean).join(" ");
+// const prettyNum = (n) =>
+//   n?.toLocaleString?.(undefined, { maximumFractionDigits: 2 }) ?? String(n ?? "");
+
+// const fmtDateTime = (iso) => {
+//   if (!iso) return "—";
+//   const d = new Date(iso);
+//   if (isNaN(d.getTime())) return "—";
+//   return d.toLocaleString();
+// };
+
+// const fmtDuration = (seconds) => {
+//   if (seconds == null) return "—";
+//   const s = Math.max(0, Math.round(seconds));
+//   const m = Math.floor(s / 60);
+//   const rem = s % 60;
+//   return `${m}m ${rem}s`;
+// };
+
+// const maskPhone = (raw) => {
+//   if (!raw) return "—";
+//   const cleaned = String(raw).replace(/\D/g, "");
+//   if (cleaned.length < 10) return raw;
+//   const tail = cleaned.slice(-10);
+//   return `+${cleaned.slice(0, cleaned.length - 10)} (${tail.slice(0, 3)}) ${tail.slice(3, 6)}-${tail.slice(6)}`;
+// };
+
+// /* Build admin-safe endpoints (no /user/*) */
+// const endpoints = {
+//   ALL_LOGS: () => `${API_BASE}/all_call_logs`,
+//   CALL_DETAIL: (id) => `${API_BASE}/call/${id}`,
+//   DELETE_CALL: (id) => `${API_BASE}/call_log/${id}`,
+//   UPDATE_MISSING: () => `${API_BASE}/update_calls`,
+//   REFRESH_TRANSCRIPT: (id) => `${API_BASE}/refresh-transcript/${id}`,
+//   CALL_STATUS: (id) => `${API_BASE}/call-status/${id}`,
+//   SYNC_INBOUND: () => `${API_BASE}/sync-inbound-calls`,
+// };
+
+// /* Auth fetch */
+// async function authedFetch(url, options = {}) {
+//   const token = localStorage.getItem("token");
+//   if (!token) throw new Error("Authentication required. Please log in.");
+//   const res = await fetch(url, {
+//     ...options,
+//     headers: {
+//       "Authorization": `Bearer ${token}`,
+//       "Content-Type": "application/json",
+//       ...(options.headers || {}),
+//     },
+//   });
+//   if (!res.ok) {
+//     let msg = `${res.status} ${res.statusText}`;
+//     try {
+//       const data = await res.json();
+//       msg = data?.detail || data?.message || msg;
+//     } catch {}
+//     throw new Error(msg);
+//   }
+//   return res;
+// }
+
+// /* ──────────────────────────────────────────────────────────────────────────
+//  * Main Page
+//  * ────────────────────────────────────────────────────────────────────────── */
+// export default function AdminPhoneCallsPage() {
+//   const [calls, setCalls] = useState([]);
+//   const [loading, setLoading] = useState(false);
+//   const [polling, setPolling] = useState(true);
+
+//   // Filters
+//   const [q, setQ] = useState("");
+//   const [status, setStatus] = useState("any");
+//   const [reason, setReason] = useState("any");
+//   const [dateFrom, setDateFrom] = useState("");
+//   const [dateTo, setDateTo] = useState("");
+
+//   // Pagination
+//   const [page, setPage] = useState(1);
+//   const pageSize = 12;
+
+//   // Selection / detail
+//   const [openDetail, setOpenDetail] = useState(false);
+//   const [detailId, setDetailId] = useState(null);
+//   const [detailLoading, setDetailLoading] = useState(false);
+//   const [detail, setDetail] = useState(null);
+//   const [statusProbe, setStatusProbe] = useState(null);
+//   const audioRef = useRef(null);
+
+//   // Bulk / top actions loading
+//   const [busyAction, setBusyAction] = useState(false);
+
+//   /* Initial load + polling */
+//   useEffect(() => {
+//     loadAll();
+//   }, []);
+
+//   useEffect(() => {
+//     if (!polling) return;
+//     const t = setInterval(loadAll, 15_000);
+//     return () => clearInterval(t);
+//   }, [polling]);
+
+//   async function loadAll() {
+//     try {
+//       setLoading(true);
+//       const res = await authedFetch(endpoints.ALL_LOGS());
+//       const data = await res.json();
+
+//       // Normalize typical fields from CallLog model
+//       const norm = (data || []).map((c) => ({
+//         id: c.id ?? null,
+//         call_id: c.call_id ?? c.id ?? "",
+//         customer_number: c.customer_number ?? "",
+//         customer_name: c.customer_name ?? "",
+//         status: c.status ?? "Unknown",
+//         call_ended_reason: c.call_ended_reason ?? null,
+//         call_started_at: c.call_started_at ?? c.created_at ?? null,
+//         call_ended_at: c.call_ended_at ?? null,
+//         call_duration: c.call_duration ?? null,
+//         cost: typeof c.cost === "number" ? c.cost : parseFloat(c.cost || 0),
+//         lead_id: c.lead_id ?? null,
+//       }));
+
+//       setCalls(norm);
+//     } catch (err) {
+//       console.error(err);
+//       toast.error(`Load failed: ${err.message}`);
+//     } finally {
+//       setLoading(false);
+//     }
+//   }
+
+//   /* Filtering */
+//   const filtered = useMemo(() => {
+//     return (calls || []).filter((c) => {
+//       const text = `${c.call_id} ${c.customer_number} ${c.customer_name} ${c.status} ${c.call_ended_reason ?? ""}`.toLowerCase();
+//       if (q && !text.includes(q.toLowerCase())) return false;
+
+//       if (status !== "any" && (c.status || "Unknown") !== status) return false;
+
+//       if (reason !== "any") {
+//         const r = (c.call_ended_reason || "Unknown").toLowerCase();
+//         if (reason === "null") {
+//           if (c.call_ended_reason != null) return false;
+//         } else if (!r.includes(reason.toLowerCase())) {
+//           return false;
+//         }
+//       }
+
+//       if (dateFrom) {
+//         const start = new Date(dateFrom);
+//         const ts = new Date(c.call_started_at || c.call_ended_at || 0);
+//         if (isFinite(start) && isFinite(ts) && ts < start) return false;
+//       }
+//       if (dateTo) {
+//         const end = new Date(dateTo);
+//         const ts = new Date(c.call_started_at || c.call_ended_at || 0);
+//         if (isFinite(end) && isFinite(ts) && ts > new Date(end.getTime() + 86399000)) return false;
+//       }
+//       return true;
+//     });
+//   }, [calls, q, status, reason, dateFrom, dateTo]);
+
+//   /* Pagination pages */
+//   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+//   const pageSafe = Math.min(page, totalPages);
+//   const pageSlice = useMemo(() => {
+//     const start = (pageSafe - 1) * pageSize;
+//     return filtered.slice(start, start + pageSize);
+//   }, [filtered, pageSafe]);
+
+//   /* Totals */
+//   const totals = useMemo(() => {
+//     const sumCost = filtered.reduce((acc, c) => acc + (Number(c.cost) || 0), 0);
+//     const sumDur = filtered.reduce((acc, c) => acc + (Number(c.call_duration) || 0), 0);
+//     return {
+//       count: filtered.length,
+//       cost: sumCost,
+//       duration: sumDur,
+//     };
+//   }, [filtered]);
+
+//   function resetFilters() {
+//     setQ("");
+//     setStatus("any");
+//     setReason("any");
+//     setDateFrom("");
+//     setDateTo("");
+//     setPage(1);
+//   }
+
+//   /* Detail drawer */
+//   async function openCallDetail(id) {
+//     try {
+//       setDetailId(id);
+//       setOpenDetail(true);
+//       setDetailLoading(true);
+
+//       const [detailRes, statusRes] = await Promise.all([
+//         authedFetch(endpoints.CALL_DETAIL(id)),
+//         authedFetch(endpoints.CALL_STATUS(id)),
+//       ]);
+
+//       const d = await detailRes.json();
+//       const s = await statusRes.json();
+
+//       setDetail(d);
+//       setStatusProbe(s);
+//     } catch (err) {
+//       toast.error(`Failed to load call detail: ${err.message}`);
+//     } finally {
+//       setDetailLoading(false);
+//     }
+//   }
+
+//   function closeDetail() {
+//     setOpenDetail(false);
+//     setDetailId(null);
+//     setDetail(null);
+//     setStatusProbe(null);
+//   }
+
+//   /* Actions */
+//   async function doDelete(id) {
+//     if (!id) return;
+//     if (!confirm("Delete this call log? This also attempts to delete the VAPI call.")) return;
+//     try {
+//       const res = await authedFetch(endpoints.DELETE_CALL(id), { method: "DELETE" });
+//       await res.json().catch(() => {});
+//       toast.success("Call log deleted");
+//       setCalls((prev) => prev.filter((c) => c.call_id !== id));
+//       if (detailId === id) closeDetail();
+//     } catch (err) {
+//       toast.error(`Delete failed: ${err.message}`);
+//     }
+//   }
+
+//   async function refreshTranscript(id) {
+//     try {
+//       setBusyAction(true);
+//       const res = await authedFetch(endpoints.REFRESH_TRANSCRIPT(id), { method: "POST" });
+//       const data = await res.json();
+//       toast.success(data?.message || "Transcript refreshed");
+//       // If detail drawer open, merge in new transcript
+//       if (detailId === id) {
+//         setDetail((prev) => ({ ...(prev || {}), transcript: data?.transcript ?? prev?.transcript }));
+//       }
+//     } catch (err) {
+//       toast.error(`Refresh failed: ${err.message}`);
+//     } finally {
+//       setBusyAction(false);
+//     }
+//   }
+
+//   async function repairMissing() {
+//     try {
+//       setBusyAction(true);
+//       const res = await authedFetch(endpoints.UPDATE_MISSING());
+//       const data = await res.json();
+//       toast.success(data?.message || "Updated missing details");
+//       await loadAll();
+//     } catch (err) {
+//       toast.error(`Update failed: ${err.message}`);
+//     } finally {
+//       setBusyAction(false);
+//     }
+//   }
+
+//   async function syncInbound() {
+//     try {
+//       setBusyAction(true);
+//       const res = await authedFetch(endpoints.SYNC_INBOUND(), { method: "POST" });
+//       const data = await res.json();
+//       toast.success(data?.detail || "Synced inbound calls");
+//       await loadAll();
+//     } catch (err) {
+//       toast.error(`Sync failed: ${err.message}`);
+//     } finally {
+//       setBusyAction(false);
+//     }
+//   }
+
+//   async function probeStatus(id) {
+//     try {
+//       const res = await authedFetch(endpoints.CALL_STATUS(id));
+//       const s = await res.json();
+//       setStatusProbe(s);
+//       toast.success("Status updated");
+//     } catch (err) {
+//       toast.error(`Status check failed: ${err.message}`);
+//     }
+//   }
+
+//   /* Copy helper */
+//   function copy(text, label = "Copied") {
+//     navigator.clipboard.writeText(String(text ?? "")).then(
+//       () => toast.success(label),
+//       () => toast.error("Copy failed")
+//     );
+//   }
+
+//   return (
+//     <div className="min-h-screen" style={{ background: COLORS.bg }}>
+//       {/* Top bar */}
+//       <div className="sticky top-0 z-30 border-b/20 backdrop-blur supports-[backdrop-filter]:bg-opacity-60"
+//            style={{ background: `${COLORS.bg}CC`, borderColor: COLORS.border }}>
+//         <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
+//           <div className="flex items-center gap-3">
+//             <div className="w-10 h-10 rounded-xl flex items-center justify-center"
+//                  style={{ background: COLORS.card, border: `1px solid ${COLORS.border}` }}>
+//               <Phone size={20} color={COLORS.primary} />
+//             </div>
+//             <div>
+//               <div className="text-xl font-bold" style={{ color: COLORS.text }}>
+//                 Admin · Phone Calls
+//               </div>
+//               <div className="text-xs" style={{ color: COLORS.dim }}>
+//                 Full control: logs, transcripts, recordings
+//               </div>
+//             </div>
+//           </div>
+
+//           <div className="flex items-center gap-2">
+//             <button
+//               onClick={() => setPolling((p) => !p)}
+//               className={cx(
+//                 "px-3 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 border transition",
+//                 "hover:opacity-90"
+//               )}
+//               style={{
+//                 background: polling ? `${COLORS.primary}22` : COLORS.card,
+//                 color: polling ? COLORS.primary : COLORS.text,
+//                 borderColor: COLORS.border,
+//               }}
+//               title={polling ? "Auto-refresh is ON" : "Auto-refresh is OFF"}
+//             >
+//               <Radio size={16} />
+//               {polling ? "Live" : "Paused"}
+//             </button>
+
+//             <button
+//               onClick={loadAll}
+//               className="px-3 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 border transition hover:opacity-90"
+//               style={{ background: COLORS.card, color: COLORS.text, borderColor: COLORS.border }}
+//             >
+//               <RefreshCw size={16} />
+//               Refresh
+//             </button>
+//           </div>
+//         </div>
+//       </div>
+
+//       {/* Content */}
+//       <div className="max-w-7xl mx-auto px-4 py-8 space-y-8">
+//         {/* Actions + Filters */}
+//         <div className="grid lg:grid-cols-3 gap-4">
+//           <div className="lg:col-span-2">
+//             <div
+//               className="rounded-2xl p-4 border"
+//               style={{ background: COLORS.panel, borderColor: COLORS.border }}
+//             >
+//               <div className="flex flex-col md:flex-row md:items-center gap-3">
+//                 <div className="relative flex-1">
+//                   <Search className="absolute left-3 top-1/2 -translate-y-1/2" size={18} color={COLORS.dim} />
+//                   <input
+//                     value={q}
+//                     onChange={(e) => { setQ(e.target.value); setPage(1); }}
+//                     placeholder="Search by call id, number, name, status, reason..."
+//                     className="w-full pl-10 pr-3 py-2 rounded-lg outline-none"
+//                     style={{
+//                       background: COLORS.card,
+//                       color: COLORS.text,
+//                       border: `1px solid ${COLORS.border}`,
+//                     }}
+//                   />
+//                 </div>
+//                 <div className="flex items-center gap-2">
+//                   <Filter size={16} color={COLORS.dim} />
+//                   <select
+//                     value={status}
+//                     onChange={(e) => { setStatus(e.target.value); setPage(1); }}
+//                     className="px-3 py-2 rounded-lg text-sm"
+//                     style={{ background: COLORS.card, color: COLORS.text, border: `1px solid ${COLORS.border}` }}
+//                   >
+//                     <option value="any">Any status</option>
+//                     <option value="completed">completed</option>
+//                     <option value="failed">failed</option>
+//                     <option value="in-progress">in-progress</option>
+//                     <option value="queued">queued</option>
+//                     <option value="connecting">connecting</option>
+//                     <option value="Unknown">Unknown</option>
+//                   </select>
+
+//                   <select
+//                     value={reason}
+//                     onChange={(e) => { setReason(e.target.value); setPage(1); }}
+//                     className="px-3 py-2 rounded-lg text-sm"
+//                     style={{ background: COLORS.card, color: COLORS.text, border: `1px solid ${COLORS.border}` }}
+//                   >
+//                     <option value="any">Any reason</option>
+//                     <option value="null">No reason (null)</option>
+//                     <option value="completed">completed</option>
+//                     <option value="hangup">hangup</option>
+//                     <option value="no-answer">no-answer</option>
+//                     <option value="busy">busy</option>
+//                     <option value="failed">failed</option>
+//                     <option value="Unknown">Unknown</option>
+//                   </select>
+//                 </div>
+//               </div>
+
+//               <div className="grid sm:grid-cols-2 gap-3 mt-3">
+//                 <div className="flex items-center gap-2">
+//                   <span className="text-xs" style={{ color: COLORS.dim }}>From</span>
+//                   <input
+//                     type="date"
+//                     value={dateFrom}
+//                     onChange={(e) => { setDateFrom(e.target.value); setPage(1); }}
+//                     className="px-3 py-2 rounded-lg text-sm flex-1"
+//                     style={{ background: COLORS.card, color: COLORS.text, border: `1px solid ${COLORS.border}` }}
+//                   />
+//                 </div>
+//                 <div className="flex items-center gap-2">
+//                   <span className="text-xs" style={{ color: COLORS.dim }}>To</span>
+//                   <input
+//                     type="date"
+//                     value={dateTo}
+//                     onChange={(e) => { setDateTo(e.target.value); setPage(1); }}
+//                     className="px-3 py-2 rounded-lg text-sm flex-1"
+//                     style={{ background: COLORS.card, color: COLORS.text, border: `1px solid ${COLORS.border}` }}
+//                   />
+//                 </div>
+//               </div>
+
+//               <div className="flex items-center gap-2 mt-3">
+//                 <button
+//                   onClick={resetFilters}
+//                   className="px-3 py-2 rounded-lg text-sm border hover:opacity-90"
+//                   style={{ background: COLORS.card, color: COLORS.text, borderColor: COLORS.border }}
+//                 >
+//                   Reset filters
+//                 </button>
+//               </div>
+//             </div>
+//           </div>
+
+//           {/* Top actions */}
+//           <div
+//             className="rounded-2xl p-4 border space-y-3"
+//             style={{ background: COLORS.panel, borderColor: COLORS.border }}
+//           >
+//             <div className="text-sm font-semibold" style={{ color: COLORS.text }}>
+//               Admin Actions
+//             </div>
+//             <div className="grid grid-cols-2 gap-2">
+//               <button
+//                 onClick={repairMissing}
+//                 disabled={busyAction}
+//                 className="px-3 py-2 rounded-xl text-sm font-semibold border hover:opacity-90 flex items-center gap-2 justify-center disabled:opacity-50"
+//                 style={{ background: COLORS.card, color: COLORS.amber, borderColor: COLORS.border }}
+//                 title="Fill call_ended_reason, duration, etc. for incomplete rows"
+//               >
+//                 {busyAction ? <Loader2 className="animate-spin" size={16} /> : <AlertTriangle size={16} />}
+//                 Repair Missing
+//               </button>
+//               <button
+//                 onClick={syncInbound}
+//                 disabled={busyAction}
+//                 className="px-3 py-2 rounded-xl text-sm font-semibold border hover:opacity-90 flex items-center gap-2 justify-center disabled:opacity-50"
+//                 style={{ background: COLORS.card, color: COLORS.cyan, borderColor: COLORS.border }}
+//                 title="Sync inbound calls from VAPI for this admin's assistants"
+//               >
+//                 {busyAction ? <Loader2 className="animate-spin" size={16} /> : <RefreshCw size={16} />}
+//                 Sync Inbound
+//               </button>
+//             </div>
+
+//             <div className="grid grid-cols-3 gap-2 pt-2">
+//               <StatTile
+//                 icon={<CheckCircle2 size={16} color={COLORS.success} />}
+//                 label="Filtered"
+//                 value={prettyNum(totals.count)}
+//               />
+//               <StatTile
+//                 icon={<Clock size={16} color={COLORS.primary} />}
+//                 label="Duration"
+//                 value={fmtDuration(totals.duration)}
+//               />
+//               <StatTile
+//                 icon={<DollarSign size={16} color={COLORS.amber} />}
+//                 label="Cost"
+//                 value={`$${prettyNum(totals.cost)}`}
+//               />
+//             </div>
+//           </div>
+//         </div>
+
+//         {/* Results */}
+//         <div
+//           className="rounded-2xl border overflow-hidden"
+//           style={{ background: COLORS.panel, borderColor: COLORS.border }}
+//         >
+//           {/* Header row */}
+//           <div
+//             className="grid grid-cols-12 gap-3 px-4 py-3 text-xs border-b"
+//             style={{ borderColor: COLORS.border, background: "#0c1326" }}
+//           >
+//             <div className="col-span-3" style={{ color: COLORS.dim }}>Customer</div>
+//             <div className="col-span-2" style={{ color: COLORS.dim }}>Number</div>
+//             <div className="col-span-2" style={{ color: COLORS.dim }}>Status</div>
+//             <div className="col-span-2" style={{ color: COLORS.dim }}>Started</div>
+//             <div className="col-span-1" style={{ color: COLORS.dim }}>Dur</div>
+//             <div className="col-span-2 text-right" style={{ color: COLORS.dim }}>Actions</div>
+//           </div>
+
+//           {/* Body */}
+//           {loading ? (
+//             <div className="py-16 flex items-center justify-center">
+//               <div className="flex items-center gap-3">
+//                 <Loader2 className="animate-spin" color={COLORS.primary} />
+//                 <span style={{ color: COLORS.dim }}>Loading calls…</span>
+//               </div>
+//             </div>
+//           ) : pageSlice.length === 0 ? (
+//             <div className="py-16 text-center" style={{ color: COLORS.dim }}>
+//               No results match your filters.
+//             </div>
+//           ) : (
+//             pageSlice.map((c) => (
+//               <div
+//                 key={c.call_id}
+//                 className="grid grid-cols-12 gap-3 px-4 py-3 border-b hover:bg-white/5 transition"
+//                 style={{ borderColor: COLORS.border }}
+//               >
+//                 <div className="col-span-3 flex items-center gap-3">
+//                   <div
+//                     className="w-9 h-9 rounded-lg flex items-center justify-center"
+//                     style={{ background: COLORS.card, border: `1px solid ${COLORS.border}` }}
+//                   >
+//                     <Phone size={16} color={COLORS.primary} />
+//                   </div>
+//                   <div className="min-w-0">
+//                     <div className="truncate font-semibold" style={{ color: COLORS.text }}>
+//                       {c.customer_name || "—"}
+//                     </div>
+//                     <div className="text-xs truncate" style={{ color: COLORS.dim }}>
+//                       ID:&nbsp;
+//                       <button
+//                         onClick={() => copy(c.call_id, "Call ID copied")}
+//                         className="underline-offset-2 hover:underline"
+//                         title="Copy call ID"
+//                       >
+//                         {c.call_id}
+//                       </button>
+//                     </div>
+//                   </div>
+//                 </div>
+
+//                 <div className="col-span-2 flex items-center">
+//                   <div className="text-sm" style={{ color: COLORS.text }}>{maskPhone(c.customer_number)}</div>
+//                 </div>
+
+//                 <div className="col-span-2 flex items-center gap-2">
+//                   <Badge
+//                     color={c.status === "completed" ? COLORS.success : c.status === "failed" ? COLORS.danger : COLORS.primary}
+//                     text={c.status || "Unknown"}
+//                   />
+//                   <span className="text-xs truncate" style={{ color: COLORS.dim }}>
+//                     {c.call_ended_reason ?? "—"}
+//                   </span>
+//                 </div>
+
+//                 <div className="col-span-2 flex items-center">
+//                   <div className="text-sm" style={{ color: COLORS.text }}>{fmtDateTime(c.call_started_at)}</div>
+//                 </div>
+
+//                 <div className="col-span-1 flex items-center">
+//                   <div className="text-sm" style={{ color: COLORS.text }}>{fmtDuration(c.call_duration)}</div>
+//                 </div>
+
+//                 <div className="col-span-2 flex items-center justify-end gap-2">
+//                   <button
+//                     onClick={() => openCallDetail(c.call_id)}
+//                     className="px-3 py-1.5 rounded-lg text-xs font-semibold border hover:opacity-90 flex items-center gap-2"
+//                     style={{ background: COLORS.card, color: COLORS.text, borderColor: COLORS.border }}
+//                     title="Open details"
+//                   >
+//                     <Info size={14} />
+//                     Detail
+//                   </button>
+//                   <button
+//                     onClick={() => doDelete(c.call_id)}
+//                     className="px-3 py-1.5 rounded-lg text-xs font-semibold border hover:opacity-90 flex items-center gap-2"
+//                     style={{ background: "#2a1520", color: COLORS.danger, borderColor: COLORS.border }}
+//                     title="Delete"
+//                   >
+//                     <Trash2 size={14} />
+//                     Delete
+//                   </button>
+//                 </div>
+//               </div>
+//             ))
+//           )}
+
+//           {/* Footer / Pagination */}
+//           {!loading && filtered.length > 0 && (
+//             <div className="flex items-center justify-between px-4 py-3" style={{ background: "#0c1326" }}>
+//               <div className="text-xs" style={{ color: COLORS.dim }}>
+//                 Showing {(pageSafe - 1) * pageSize + 1}–{Math.min(filtered.length, pageSafe * pageSize)} of {filtered.length}
+//               </div>
+//               <div className="flex items-center gap-2">
+//                 <button
+//                   onClick={() => setPage((p) => Math.max(1, p - 1))}
+//                   disabled={pageSafe === 1}
+//                   className="px-3 py-1.5 rounded-lg text-xs font-semibold border disabled:opacity-50"
+//                   style={{ background: COLORS.card, color: COLORS.text, borderColor: COLORS.border }}
+//                 >
+//                   Prev
+//                 </button>
+//                 <div className="text-xs" style={{ color: COLORS.dim }}>
+//                   {pageSafe} / {totalPages}
+//                 </div>
+//                 <button
+//                   onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+//                   disabled={pageSafe >= totalPages}
+//                   className="px-3 py-1.5 rounded-lg text-xs font-semibold border disabled:opacity-50"
+//                   style={{ background: COLORS.card, color: COLORS.text, borderColor: COLORS.border }}
+//                 >
+//                   Next
+//                 </button>
+//               </div>
+//             </div>
+//           )}
+//         </div>
+//       </div>
+
+//       {/* Detail Drawer */}
+//       {openDetail && (
+//         <div className="fixed inset-0 z-40">
+//           {/* Backdrop */}
+//           <div
+//             className="absolute inset-0"
+//             style={{ background: "#00000080" }}
+//             onClick={closeDetail}
+//           />
+//           {/* Panel */}
+//           <div
+//             className="absolute right-0 top-0 h-full w-full sm:w-[540px] shadow-2xl border-l overflow-y-auto"
+//             style={{ background: COLORS.panel, borderColor: COLORS.border }}
+//           >
+//             <div className="sticky top-0 px-4 py-3 flex items-center justify-between border-b"
+//                  style={{ background: COLORS.panel, borderColor: COLORS.border }}>
+//               <div className="flex items-center gap-2">
+//                 <FileAudio size={18} color={COLORS.primary} />
+//                 <div className="font-semibold" style={{ color: COLORS.text }}>
+//                   Call Detail
+//                 </div>
+//               </div>
+//               <button
+//                 onClick={closeDetail}
+//                 className="p-2 rounded-lg border hover:opacity-90"
+//                 style={{ background: COLORS.card, borderColor: COLORS.border }}
+//               >
+//                 <X size={16} color={COLORS.dim} />
+//               </button>
+//             </div>
+
+//             {/* Body */}
+//             <div className="p-4 space-y-4">
+//               {detailLoading ? (
+//                 <div className="flex items-center gap-3">
+//                   <Loader2 className="animate-spin" color={COLORS.primary} />
+//                   <span style={{ color: COLORS.dim }}>Loading…</span>
+//                 </div>
+//               ) : !detail ? (
+//                 <div style={{ color: COLORS.dim }}>No detail available.</div>
+//               ) : (
+//                 <>
+//                   {/* Summary Cards */}
+//                   <div className="grid grid-cols-2 gap-3">
+//                     <MiniCard label="Status" value={statusProbe?.status || detail?.status || "—"} />
+//                     <MiniCard label="Ended Reason" value={detail?.ended_reason || detail?.call_ended_reason || "—"} />
+//                     <MiniCard label="Duration" value={fmtDuration(detail?.call_duration)} />
+//                     <MiniCard label="Cost" value={`$${prettyNum(detail?.cost ?? 0)}`} />
+//                   </div>
+
+//                   {/* Timestamps */}
+//                   <div className="grid grid-cols-2 gap-3">
+//                     <MiniCard label="Started" value={fmtDateTime(detail?.call_started_at || detail?.started_at || detail?.startedAt)} />
+//                     <MiniCard label="Ended" value={fmtDateTime(detail?.call_ended_at || detail?.ended_at || detail?.endedAt)} />
+//                   </div>
+
+//                   {/* Recording */}
+//                   {detail?.recording_url && detail.recording_url !== "N/A" && (
+//                     <div
+//                       className="p-3 rounded-xl border"
+//                       style={{ background: COLORS.card, borderColor: COLORS.border }}
+//                     >
+//                       <div className="flex items-center gap-2 mb-2">
+//                         <PlayCircle size={18} color={COLORS.primary} />
+//                         <div className="text-sm font-semibold" style={{ color: COLORS.text }}>
+//                           Recording
+//                         </div>
+//                       </div>
+//                       <audio ref={audioRef} controls className="w-full">
+//                         <source src={detail.recording_url} />
+//                       </audio>
+//                       <div className="mt-2 text-xs flex items-center gap-2" style={{ color: COLORS.dim }}>
+//                         <button
+//                           onClick={() => copy(detail.recording_url, "Recording URL copied")}
+//                           className="underline-offset-2 hover:underline"
+//                         >
+//                           Copy URL
+//                         </button>
+//                       </div>
+//                     </div>
+//                   )}
+
+//                   {/* Assistant & Variables */}
+//                   <div
+//                     className="p-3 rounded-xl border"
+//                     style={{ background: COLORS.card, borderColor: COLORS.border }}
+//                   >
+//                     <div className="text-sm font-semibold mb-2" style={{ color: COLORS.text }}>
+//                       Assistant
+//                     </div>
+//                     <div className="text-xs" style={{ color: COLORS.dim }}>
+//                       ID: {detail?.assistant?.id || "—"}
+//                     </div>
+//                     <div className="text-xs" style={{ color: COLORS.dim }}>
+//                       Name: {detail?.assistant?.name || "—"}
+//                     </div>
+
+//                     <div className="mt-3 text-sm font-semibold" style={{ color: COLORS.text }}>
+//                       Variables
+//                     </div>
+//                     <div className="mt-1 grid grid-cols-2 gap-2 text-xs" style={{ color: COLORS.dim }}>
+//                       {detail?.variableValues ? (
+//                         Object.entries(detail.variableValues).map(([k, v]) => (
+//                           <div key={k} className="truncate">
+//                             <span className="opacity-70">{k}:</span> {String(v ?? "—")}
+//                           </div>
+//                         ))
+//                       ) : (
+//                         <div>—</div>
+//                       )}
+//                     </div>
+//                   </div>
+
+//                   {/* Transcript */}
+//                   <div
+//                     className="p-3 rounded-xl border"
+//                     style={{ background: COLORS.card, borderColor: COLORS.border }}
+//                   >
+//                     <div className="flex items-center justify-between mb-2">
+//                       <div className="text-sm font-semibold" style={{ color: COLORS.text }}>
+//                         Transcript
+//                       </div>
+//                       <div className="flex items-center gap-2">
+//                         <button
+//                           onClick={() => probeStatus(detailId)}
+//                           className="px-2 py-1.5 rounded-lg text-xs font-semibold border hover:opacity-90"
+//                           style={{ background: COLORS.panel, color: COLORS.text, borderColor: COLORS.border }}
+//                         >
+//                           Check Status
+//                         </button>
+//                         <button
+//                           onClick={() => refreshTranscript(detailId)}
+//                           className="px-2 py-1.5 rounded-lg text-xs font-semibold border hover:opacity-90"
+//                           style={{ background: COLORS.panel, color: COLORS.cyan, borderColor: COLORS.border }}
+//                         >
+//                           Refresh
+//                         </button>
+//                       </div>
+//                     </div>
+
+//                     <div className="text-xs whitespace-pre-wrap leading-relaxed"
+//                          style={{ color: COLORS.dim, maxHeight: 280, overflow: "auto" }}>
+//                       {detail?.transcript && detail.transcript !== "No transcript available"
+//                         ? detail.transcript
+//                         : "No transcript available"}
+//                     </div>
+//                   </div>
+
+//                   {/* Danger zone */}
+//                   <div className="flex items-center justify-between">
+//                     <div className="text-xs" style={{ color: COLORS.dim }}>
+//                       Delete this call log (and attempt VAPI deletion)
+//                     </div>
+//                     <button
+//                       onClick={() => doDelete(detailId)}
+//                       className="px-3 py-2 rounded-lg text-xs font-semibold border hover:opacity-90"
+//                       style={{ background: "#2a1520", color: COLORS.danger, borderColor: COLORS.border }}
+//                     >
+//                       <Trash2 size={14} />
+//                       &nbsp;Delete
+//                     </button>
+//                   </div>
+//                 </>
+//               )}
+//             </div>
+//           </div>
+//         </div>
+//       )}
+//     </div>
+//   );
+// }
+
+// /* ──────────────────────────────────────────────────────────────────────────
+//  * Small UI pieces
+//  * ────────────────────────────────────────────────────────────────────────── */
+// function Badge({ color, text }) {
+//   return (
+//     <span
+//       className="px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wide"
+//       style={{ background: `${color}22`, color }}
+//     >
+//       {text}
+//     </span>
+//   );
+// }
+
+// function StatTile({ icon, label, value }) {
+//   return (
+//     <div
+//       className="p-3 rounded-xl border"
+//       style={{ background: COLORS.card, borderColor: COLORS.border }}
+//     >
+//       <div className="flex items-center gap-2">
+//         {icon}
+//         <div className="text-xs" style={{ color: COLORS.dim }}>{label}</div>
+//       </div>
+//       <div className="mt-1 text-lg font-bold" style={{ color: COLORS.text }}>
+//         {value}
+//       </div>
+//     </div>
+//   );
+// }
+
+// function MiniCard({ label, value }) {
+//   return (
+//     <div
+//       className="p-3 rounded-xl border"
+//       style={{ background: COLORS.card, borderColor: COLORS.border }}
+//     >
+//       <div className="text-xs" style={{ color: COLORS.dim }}>{label}</div>
+//       <div className="text-sm font-semibold truncate" style={{ color: COLORS.text }}>
+//         {value}
+//       </div>
+//     </div>
+//   );
+// }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// "use client";
+
+// import React, { useEffect, useMemo, useRef, useState } from "react";
+// import {
+//   Phone,
+//   PlayCircle,
+//   RefreshCw,
+//   Search,
+//   Filter,
+//   Loader2,
+//   X,
+//   Trash2,
+//   FileAudio,
+//   Info,
+//   Clock,
+//   DollarSign,
+//   CheckCircle2,
+//   AlertTriangle,
+//   Radio,
+//   Copy,
+// } from "lucide-react";
+// import { toast } from "react-toastify";
+
+// /* ──────────────────────────────────────────────────────────────────────────
+//  * Config
+//  * ────────────────────────────────────────────────────────────────────────── */
+// const API_URL = import.meta.env?.VITE_API_URL || "http://localhost:8000";
+// const API_BASE = `${API_URL}/api`;
+
+// /* Light theme — primary: white; secondary: blue/cyan/purple accents */
+// const COLORS = {
+//   bg: "#ffffff",         // primary white
+//   panel: "#F8FAFC",      // slate-50
+//   card: "#ffffff",       // pure white cards
+//   border: "#E5E7EB",     // gray-200
+//   text: "#0F172A",       // slate-900
+//   dim: "#64748B",        // slate-500
+//   primary: "#4F46E5",    // indigo-600
+//   success: "#16A34A",    // green-600
+//   danger: "#DC2626",     // red-600
+//   amber: "#D97706",      // amber-600
+//   cyan: "#06B6D4",       // cyan-500
+//   purple: "#7C3AED",     // violet-600
+//   row: "#F9FAFB",        // row alt
+// };
+
+// /* Small helpers */
+// const cx = (...arr) => arr.filter(Boolean).join(" ");
+// const prettyNum = (n) =>
+//   n?.toLocaleString?.(undefined, { maximumFractionDigits: 2 }) ?? String(n ?? "");
+
+// const fmtDateTime = (iso) => {
+//   if (!iso) return "—";
+//   const d = new Date(iso);
+//   if (isNaN(d.getTime())) return "—";
+//   return d.toLocaleString();
+// };
+
+// const fmtDuration = (seconds) => {
+//   if (seconds == null) return "—";
+//   const s = Math.max(0, Math.round(seconds));
+//   const m = Math.floor(s / 60);
+//   const rem = s % 60;
+//   return `${m}m ${rem}s`;
+// };
+
+// const maskPhone = (raw) => {
+//   if (!raw) return "—";
+//   const cleaned = String(raw).replace(/\D/g, "");
+//   if (cleaned.length < 10) return raw;
+//   const tail = cleaned.slice(-10);
+//   const cc = cleaned.slice(0, cleaned.length - 10) || "1";
+//   return `+${cc} (${tail.slice(0, 3)}) ${tail.slice(3, 6)}-${tail.slice(6)}`;
+// };
+
+// /* Admin endpoints (no /user/*) */
+// const endpoints = {
+//   ALL_LOGS: () => `${API_BASE}/all_call_logs`,
+//   CALL_DETAIL: (id) => `${API_BASE}/call/${id}`,
+//   DELETE_CALL: (id) => `${API_BASE}/call_log/${id}`,
+//   UPDATE_MISSING: () => `${API_BASE}/update_calls`,
+//   REFRESH_TRANSCRIPT: (id) => `${API_BASE}/refresh-transcript/${id}`,
+//   CALL_STATUS: (id) => `${API_BASE}/call-status/${id}`,
+//   SYNC_INBOUND: () => `${API_BASE}/sync-inbound-calls`,
+// };
+
+// /* Auth fetch */
+// async function authedFetch(url, options = {}) {
+//   const token = localStorage.getItem("token");
+//   if (!token) throw new Error("Authentication required. Please log in.");
+//   const res = await fetch(url, {
+//     ...options,
+//     headers: {
+//       "Authorization": `Bearer ${token}`,
+//       "Content-Type": "application/json",
+//       ...(options.headers || {}),
+//     },
+//   });
+//   if (!res.ok) {
+//     let msg = `${res.status} ${res.statusText}`;
+//     try {
+//       const data = await res.json();
+//       msg = data?.detail || data?.message || msg;
+//     } catch {}
+//     throw new Error(msg);
+//   }
+//   return res;
+// }
+
+// /* ──────────────────────────────────────────────────────────────────────────
+//  * Main Page
+//  * ────────────────────────────────────────────────────────────────────────── */
+// export default function AdminPhoneCallsPage() {
+//   const [calls, setCalls] = useState([]);
+//   const [loading, setLoading] = useState(false);
+//   const [polling, setPolling] = useState(true);
+
+//   // Filters
+//   const [q, setQ] = useState("");
+//   const [status, setStatus] = useState("any");
+//   const [reason, setReason] = useState("any");
+//   const [dateFrom, setDateFrom] = useState("");
+//   const [dateTo, setDateTo] = useState("");
+
+//   // Pagination
+//   const [page, setPage] = useState(1);
+//   const pageSize = 12;
+
+//   // Selection / detail
+//   const [openDetail, setOpenDetail] = useState(false);
+//   const [detailId, setDetailId] = useState(null);
+//   const [detailLoading, setDetailLoading] = useState(false);
+//   const [detail, setDetail] = useState(null);
+//   const [statusProbe, setStatusProbe] = useState(null);
+//   const audioRef = useRef(null);
+
+//   // Bulk / top actions loading
+//   const [busyAction, setBusyAction] = useState(false);
+
+//   /* Initial load + polling */
+//   useEffect(() => {
+//     loadAll();
+//   }, []);
+
+//   useEffect(() => {
+//     if (!polling) return;
+//     const t = setInterval(loadAll, 15_000);
+//     return () => clearInterval(t);
+//   }, [polling]);
+
+//   async function loadAll() {
+//     try {
+//       setLoading(true);
+//       const res = await authedFetch(endpoints.ALL_LOGS());
+//       const data = await res.json();
+
+//       // Normalize typical fields from CallLog model
+//       const norm = (data || []).map((c) => ({
+//         id: c.id ?? null,
+//         call_id: c.call_id ?? c.id ?? "",
+//         customer_number: c.customer_number ?? "",
+//         customer_name: c.customer_name ?? "",
+//         status: c.status ?? "Unknown",
+//         call_ended_reason: c.call_ended_reason ?? null,
+//         call_started_at: c.call_started_at ?? c.created_at ?? null,
+//         call_ended_at: c.call_ended_at ?? null,
+//         call_duration: c.call_duration ?? null,
+//         cost: typeof c.cost === "number" ? c.cost : parseFloat(c.cost || 0),
+//         lead_id: c.lead_id ?? null,
+//       }));
+
+//       setCalls(norm);
+//     } catch (err) {
+//       console.error(err);
+//       toast.error(`Load failed: ${err.message}`);
+//     } finally {
+//       setLoading(false);
+//     }
+//   }
+
+//   /* Filtering */
+//   const filtered = useMemo(() => {
+//     return (calls || []).filter((c) => {
+//       const text = `${c.call_id} ${c.customer_number} ${c.customer_name} ${c.status} ${c.call_ended_reason ?? ""}`.toLowerCase();
+//       if (q && !text.includes(q.toLowerCase())) return false;
+
+//       if (status !== "any" && (c.status || "Unknown") !== status) return false;
+
+//       if (reason !== "any") {
+//         const r = (c.call_ended_reason || "Unknown").toLowerCase();
+//         if (reason === "null") {
+//           if (c.call_ended_reason != null) return false;
+//         } else if (!r.includes(reason.toLowerCase())) {
+//           return false;
+//         }
+//       }
+
+//       if (dateFrom) {
+//         const start = new Date(dateFrom);
+//         const ts = new Date(c.call_started_at || c.call_ended_at || 0);
+//         if (isFinite(start) && isFinite(ts) && ts < start) return false;
+//       }
+//       if (dateTo) {
+//         const end = new Date(dateTo);
+//         const ts = new Date(c.call_started_at || c.call_ended_at || 0);
+//         if (isFinite(end) && isFinite(ts) && ts > new Date(end.getTime() + 86399000)) return false;
+//       }
+//       return true;
+//     });
+//   }, [calls, q, status, reason, dateFrom, dateTo]);
+
+//   /* Pagination pages */
+//   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+//   const pageSafe = Math.min(page, totalPages);
+//   const pageSlice = useMemo(() => {
+//     const start = (pageSafe - 1) * pageSize;
+//     return filtered.slice(start, start + pageSize);
+//   }, [filtered, pageSafe]);
+
+//   /* Totals */
+//   const totals = useMemo(() => {
+//     const sumCost = filtered.reduce((acc, c) => acc + (Number(c.cost) || 0), 0);
+//     const sumDur = filtered.reduce((acc, c) => acc + (Number(c.call_duration) || 0), 0);
+//     return {
+//       count: filtered.length,
+//       cost: sumCost,
+//       duration: sumDur,
+//     };
+//   }, [filtered]);
+
+//   function resetFilters() {
+//     setQ("");
+//     setStatus("any");
+//     setReason("any");
+//     setDateFrom("");
+//     setDateTo("");
+//     setPage(1);
+//   }
+
+//   /* Detail drawer */
+//   async function openCallDetail(id) {
+//     try {
+//       setDetailId(id);
+//       setOpenDetail(true);
+//       setDetailLoading(true);
+
+//       const [detailRes, statusRes] = await Promise.all([
+//         authedFetch(endpoints.CALL_DETAIL(id)),
+//         authedFetch(endpoints.CALL_STATUS(id)),
+//       ]);
+
+//       const d = await detailRes.json();
+//       const s = await statusRes.json();
+
+//       setDetail(d);
+//       setStatusProbe(s);
+//     } catch (err) {
+//       toast.error(`Failed to load call detail: ${err.message}`);
+//     } finally {
+//       setDetailLoading(false);
+//     }
+//   }
+
+//   function closeDetail() {
+//     setOpenDetail(false);
+//     setDetailId(null);
+//     setDetail(null);
+//     setStatusProbe(null);
+//   }
+
+//   /* Actions */
+//   async function doDelete(id) {
+//     if (!id) return;
+//     if (!confirm("Delete this call log? This also attempts to delete the VAPI call.")) return;
+//     try {
+//       const res = await authedFetch(endpoints.DELETE_CALL(id), { method: "DELETE" });
+//       await res.json().catch(() => {});
+//       toast.success("Call log deleted");
+//       setCalls((prev) => prev.filter((c) => c.call_id !== id));
+//       if (detailId === id) closeDetail();
+//     } catch (err) {
+//       toast.error(`Delete failed: ${err.message}`);
+//     }
+//   }
+
+//   async function refreshTranscript(id) {
+//     try {
+//       setBusyAction(true);
+//       const res = await authedFetch(endpoints.REFRESH_TRANSCRIPT(id), { method: "POST" });
+//       const data = await res.json();
+//       toast.success(data?.message || "Transcript refreshed");
+//       if (detailId === id) {
+//         setDetail((prev) => ({ ...(prev || {}), transcript: data?.transcript ?? prev?.transcript }));
+//       }
+//     } catch (err) {
+//       toast.error(`Refresh failed: ${err.message}`);
+//     } finally {
+//       setBusyAction(false);
+//     }
+//   }
+
+//   async function repairMissing() {
+//     try {
+//       setBusyAction(true);
+//       const res = await authedFetch(endpoints.UPDATE_MISSING());
+//       const data = await res.json();
+//       toast.success(data?.message || "Updated missing details");
+//       await loadAll();
+//     } catch (err) {
+//       toast.error(`Update failed: ${err.message}`);
+//     } finally {
+//       setBusyAction(false);
+//     }
+//   }
+
+//   async function syncInbound() {
+//     try {
+//       setBusyAction(true);
+//       const res = await authedFetch(endpoints.SYNC_INBOUND(), { method: "POST" });
+//       const data = await res.json();
+//       toast.success(data?.detail || "Synced inbound calls");
+//       await loadAll();
+//     } catch (err) {
+//       toast.error(`Sync failed: ${err.message}`);
+//     } finally {
+//       setBusyAction(false);
+//     }
+//   }
+
+//   async function probeStatus(id) {
+//     try {
+//       const res = await authedFetch(endpoints.CALL_STATUS(id));
+//       const s = await res.json();
+//       setStatusProbe(s);
+//       toast.success("Status updated");
+//     } catch (err) {
+//       toast.error(`Status check failed: ${err.message}`);
+//     }
+//   }
+
+//   /* Copy helper */
+//   function copy(text, label = "Copied") {
+//     navigator.clipboard.writeText(String(text ?? "")).then(
+//       () => toast.success(label),
+//       () => toast.error("Copy failed")
+//     );
+//   }
+
+//   return (
+//     <div className="min-h-screen" style={{ background: COLORS.bg }}>
+//       {/* Top bar */}
+//       <div
+//         className="sticky top-0 z-30 border-b backdrop-blur"
+//         style={{ background: "#ffffffd9", borderColor: COLORS.border }}
+//       >
+//         <div className="max-w-7xl mx-auto px-4 py-4 flex items-center justify-between">
+//           <div className="flex items-center gap-3">
+//             <div
+//               className="w-10 h-10 rounded-xl flex items-center justify-center shadow-sm"
+//               style={{ background: COLORS.card, border: `1px solid ${COLORS.border}` }}
+//             >
+//               <Phone size={20} color={COLORS.primary} />
+//             </div>
+//             <div>
+//               <div className="text-xl font-bold" style={{ color: COLORS.text }}>
+//                 Admin · Phone Calls
+//               </div>
+//               <div className="text-xs" style={{ color: COLORS.dim }}>
+//                 Full control: logs, transcripts, recordings
+//               </div>
+//             </div>
+//           </div>
+
+//           <div className="flex items-center gap-2">
+//             <button
+//               onClick={() => setPolling((p) => !p)}
+//               className={cx(
+//                 "px-3 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 border transition",
+//                 "hover:opacity-90"
+//               )}
+//               style={{
+//                 background: polling ? "#EEF2FF" : COLORS.card,
+//                 color: polling ? COLORS.primary : COLORS.text,
+//                 borderColor: COLORS.border,
+//               }}
+//               title={polling ? "Auto-refresh is ON" : "Auto-refresh is OFF"}
+//             >
+//               <Radio size={16} />
+//               {polling ? "Live" : "Paused"}
+//             </button>
+
+//             <button
+//               onClick={loadAll}
+//               className="px-3 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 border transition hover:opacity-90"
+//               style={{ background: COLORS.card, color: COLORS.text, borderColor: COLORS.border }}
+//             >
+//               <RefreshCw size={16} color={COLORS.purple} />
+//               Refresh
+//             </button>
+//           </div>
+//         </div>
+//       </div>
+
+//       {/* Content */}
+//       <div className="max-w-7xl mx-auto px-4 py-8 space-y-8">
+//         {/* Actions + Filters */}
+//         <div className="grid lg:grid-cols-3 gap-4">
+//           <div className="lg:col-span-2">
+//             <div
+//               className="rounded-2xl p-4 border"
+//               style={{ background: COLORS.panel, borderColor: COLORS.border }}
+//             >
+//               <div className="flex flex-col md:flex-row md:items-center gap-3">
+//                 <div className="relative flex-1">
+//                   <Search className="absolute left-3 top-1/2 -translate-y-1/2" size={18} color={COLORS.dim} />
+//                   <input
+//                     value={q}
+//                     onChange={(e) => { setQ(e.target.value); setPage(1); }}
+//                     placeholder="Search by call id, number, name, status, reason..."
+//                     className="w-full pl-10 pr-3 py-2 rounded-lg outline-none"
+//                     style={{
+//                       background: COLORS.card,
+//                       color: COLORS.text,
+//                       border: `1px solid ${COLORS.border}`,
+//                     }}
+//                   />
+//                 </div>
+//                 <div className="flex items-center gap-2">
+//                   <Filter size={16} color={COLORS.dim} />
+//                   <select
+//                     value={status}
+//                     onChange={(e) => { setStatus(e.target.value); setPage(1); }}
+//                     className="px-3 py-2 rounded-lg text-sm"
+//                     style={{ background: COLORS.card, color: COLORS.text, border: `1px solid ${COLORS.border}` }}
+//                   >
+//                     <option value="any">Any status</option>
+//                     <option value="completed">completed</option>
+//                     <option value="failed">failed</option>
+//                     <option value="in-progress">in-progress</option>
+//                     <option value="queued">queued</option>
+//                     <option value="connecting">connecting</option>
+//                     <option value="Unknown">Unknown</option>
+//                   </select>
+
+//                   <select
+//                     value={reason}
+//                     onChange={(e) => { setReason(e.target.value); setPage(1); }}
+//                     className="px-3 py-2 rounded-lg text-sm"
+//                     style={{ background: COLORS.card, color: COLORS.text, border: `1px solid ${COLORS.border}` }}
+//                   >
+//                     <option value="any">Any reason</option>
+//                     <option value="null">No reason (null)</option>
+//                     <option value="completed">completed</option>
+//                     <option value="hangup">hangup</option>
+//                     <option value="no-answer">no-answer</option>
+//                     <option value="busy">busy</option>
+//                     <option value="failed">failed</option>
+//                     <option value="Unknown">Unknown</option>
+//                   </select>
+//                 </div>
+//               </div>
+
+//               <div className="grid sm:grid-cols-2 gap-3 mt-3">
+//                 <div className="flex items-center gap-2">
+//                   <span className="text-xs" style={{ color: COLORS.dim }}>From</span>
+//                   <input
+//                     type="date"
+//                     value={dateFrom}
+//                     onChange={(e) => { setDateFrom(e.target.value); setPage(1); }}
+//                     className="px-3 py-2 rounded-lg text-sm flex-1"
+//                     style={{ background: COLORS.card, color: COLORS.text, border: `1px solid ${COLORS.border}` }}
+//                   />
+//                 </div>
+//                 <div className="flex items-center gap-2">
+//                   <span className="text-xs" style={{ color: COLORS.dim }}>To</span>
+//                   <input
+//                     type="date"
+//                     value={dateTo}
+//                     onChange={(e) => { setDateTo(e.target.value); setPage(1); }}
+//                     className="px-3 py-2 rounded-lg text-sm flex-1"
+//                     style={{ background: COLORS.card, color: COLORS.text, border: `1px solid ${COLORS.border}` }}
+//                   />
+//                 </div>
+//               </div>
+
+//               <div className="flex items-center gap-2 mt-3">
+//                 <button
+//                   onClick={resetFilters}
+//                   className="px-3 py-2 rounded-lg text-sm border hover:bg-slate-50 transition"
+//                   style={{ background: COLORS.card, color: COLORS.text, borderColor: COLORS.border }}
+//                 >
+//                   Reset filters
+//                 </button>
+//               </div>
+//             </div>
+//           </div>
+
+//           {/* Top actions */}
+//           <div
+//             className="rounded-2xl p-4 border space-y-3"
+//             style={{ background: COLORS.panel, borderColor: COLORS.border }}
+//           >
+//             <div className="text-sm font-semibold" style={{ color: COLORS.text }}>
+//               Admin Actions
+//             </div>
+//             <div className="grid grid-cols-2 gap-2">
+//               <button
+//                 onClick={repairMissing}
+//                 disabled={busyAction}
+//                 className="px-3 py-2 rounded-xl text-sm font-semibold border hover:bg-amber-50 transition flex items-center gap-2 justify-center disabled:opacity-50"
+//                 style={{ background: COLORS.card, color: COLORS.amber, borderColor: COLORS.border }}
+//                 title="Fill call_ended_reason, duration, etc. for incomplete rows"
+//               >
+//                 {busyAction ? <Loader2 className="animate-spin" size={16} /> : <AlertTriangle size={16} />}
+//                 Repair Missing
+//               </button>
+//               <button
+//                 onClick={syncInbound}
+//                 disabled={busyAction}
+//                 className="px-3 py-2 rounded-xl text-sm font-semibold border hover:bg-cyan-50 transition flex items-center gap-2 justify-center disabled:opacity-50"
+//                 style={{ background: COLORS.card, color: COLORS.cyan, borderColor: COLORS.border }}
+//                 title="Sync inbound calls from VAPI for this admin's assistants"
+//               >
+//                 {busyAction ? <Loader2 className="animate-spin" size={16} /> : <RefreshCw size={16} />}
+//                 Sync Inbound
+//               </button>
+//             </div>
+
+//             <div className="grid grid-cols-3 gap-2 pt-2">
+//               <StatTile
+//                 icon={<CheckCircle2 size={16} color={COLORS.success} />}
+//                 label="Filtered"
+//                 value={prettyNum(totals.count)}
+//               />
+//               <StatTile
+//                 icon={<Clock size={16} color={COLORS.primary} />}
+//                 label="Duration"
+//                 value={fmtDuration(totals.duration)}
+//               />
+//               <StatTile
+//                 icon={<DollarSign size={16} color={COLORS.amber} />}
+//                 label="Cost"
+//                 value={`$${prettyNum(totals.cost)}`}
+//               />
+//             </div>
+//           </div>
+//         </div>
+
+//         {/* Results */}
+//         <div
+//           className="rounded-2xl border overflow-hidden"
+//           style={{ background: COLORS.card, borderColor: COLORS.border }}
+//         >
+//           {/* Desktop header row (hidden on small) */}
+//           <div
+//             className="hidden md:grid grid-cols-12 gap-3 px-4 py-3 text-xs border-b"
+//             style={{ borderColor: COLORS.border, background: COLORS.panel }}
+//           >
+//             <div className="col-span-3" style={{ color: COLORS.dim }}>Customer</div>
+//             <div className="col-span-2" style={{ color: COLORS.dim }}>Number</div>
+//             <div className="col-span-2" style={{ color: COLORS.dim }}>Status</div>
+//             <div className="col-span-2" style={{ color: COLORS.dim }}>Started</div>
+//             <div className="col-span-1" style={{ color: COLORS.dim }}>Dur</div>
+//             <div className="col-span-2 text-right" style={{ color: COLORS.dim }}>Actions</div>
+//           </div>
+
+//           {/* Body – Desktop GRID */}
+//           {loading ? (
+//             <div className="py-16 flex items-center justify-center">
+//               <div className="flex items-center gap-3">
+//                 <Loader2 className="animate-spin" color={COLORS.primary} />
+//                 <span style={{ color: COLORS.dim }}>Loading calls…</span>
+//               </div>
+//             </div>
+//           ) : pageSlice.length === 0 ? (
+//             <div className="py-16 text-center" style={{ color: COLORS.dim }}>
+//               No results match your filters.
+//             </div>
+//           ) : (
+//             <>
+//               {/* Desktop rows */}
+//               <div className="hidden md:block">
+//                 {pageSlice.map((c, idx) => (
+//                   <div
+//                     key={c.call_id}
+//                     className="grid grid-cols-12 gap-3 px-4 py-3 border-b hover:bg-slate-50 transition"
+//                     style={{ borderColor: COLORS.border, background: idx % 2 ? COLORS.bg : COLORS.row }}
+//                   >
+//                     <div className="col-span-3 flex items-center gap-3">
+//                       <div
+//                         className="w-9 h-9 rounded-lg flex items-center justify-center"
+//                         style={{ background: COLORS.panel, border: `1px solid ${COLORS.border}` }}
+//                       >
+//                         <Phone size={16} color={COLORS.primary} />
+//                       </div>
+//                       <div className="min-w-0">
+//                         <div className="truncate font-semibold" style={{ color: COLORS.text }}>
+//                           {c.customer_name || "—"}
+//                         </div>
+//                         <div className="text-xs truncate flex items-center gap-1" style={{ color: COLORS.dim }}>
+//                           <span>ID:</span>
+//                           <button
+//                             onClick={() => copy(c.call_id, "Call ID copied")}
+//                             className="underline-offset-2 hover:underline flex items-center gap-1"
+//                             title="Copy call ID"
+//                           >
+//                             <Copy size={12} />
+//                             {c.call_id}
+//                           </button>
+//                         </div>
+//                       </div>
+//                     </div>
+
+//                     <div className="col-span-2 flex items-center">
+//                       <div className="text-sm" style={{ color: COLORS.text }}>{maskPhone(c.customer_number)}</div>
+//                     </div>
+
+//                     <div className="col-span-2 flex items-center gap-2">
+//                       <Badge
+//                         color={
+//                           c.status === "completed"
+//                             ? COLORS.success
+//                             : c.status === "failed"
+//                             ? COLORS.danger
+//                             : COLORS.primary
+//                         }
+//                         text={c.status || "Unknown"}
+//                       />
+//                       <span className="text-xs truncate" style={{ color: COLORS.dim }}>
+//                         {c.call_ended_reason ?? "—"}
+//                       </span>
+//                     </div>
+
+//                     <div className="col-span-2 flex items-center">
+//                       <div className="text-sm" style={{ color: COLORS.text }}>{fmtDateTime(c.call_started_at)}</div>
+//                     </div>
+
+//                     <div className="col-span-1 flex items-center">
+//                       <div className="text-sm" style={{ color: COLORS.text }}>{fmtDuration(c.call_duration)}</div>
+//                     </div>
+
+//                     <div className="col-span-2 flex items-center justify-end gap-2">
+//                       <button
+//                         onClick={() => openCallDetail(c.call_id)}
+//                         className="px-3 py-1.5 rounded-lg text-xs font-semibold border hover:bg-slate-50 flex items-center gap-2"
+//                         style={{ background: COLORS.card, color: COLORS.text, borderColor: COLORS.border }}
+//                         title="Open details"
+//                       >
+//                         <Info size={14} color={COLORS.purple} />
+//                         Detail
+//                       </button>
+//                       <button
+//                         onClick={() => doDelete(c.call_id)}
+//                         className="px-3 py-1.5 rounded-lg text-xs font-semibold border hover:bg-red-50 flex items-center gap-2"
+//                         style={{ background: COLORS.card, color: COLORS.danger, borderColor: COLORS.border }}
+//                         title="Delete"
+//                       >
+//                         <Trash2 size={14} />
+//                         Delete
+//                       </button>
+//                     </div>
+//                   </div>
+//                 ))}
+//               </div>
+
+//               {/* Mobile CARDS */}
+//               <div className="md:hidden p-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
+//                 {pageSlice.map((c) => (
+//                   <CallCard
+//                     key={c.call_id}
+//                     c={c}
+//                     onOpen={() => openCallDetail(c.call_id)}
+//                     onDelete={() => doDelete(c.call_id)}
+//                   />
+//                 ))}
+//               </div>
+//             </>
+//           )}
+
+//           {/* Footer / Pagination */}
+//           {!loading && filtered.length > 0 && (
+//             <div className="flex items-center justify-between px-4 py-3 border-t" style={{ background: COLORS.panel, borderColor: COLORS.border }}>
+//               <div className="text-xs" style={{ color: COLORS.dim }}>
+//                 Showing {(pageSafe - 1) * pageSize + 1}–{Math.min(filtered.length, pageSafe * pageSize)} of {filtered.length}
+//               </div>
+//               <div className="flex items-center gap-2">
+//                 <button
+//                   onClick={() => setPage((p) => Math.max(1, p - 1))}
+//                   disabled={pageSafe === 1}
+//                   className="px-3 py-1.5 rounded-lg text-xs font-semibold border disabled:opacity-50 hover:bg-slate-50"
+//                   style={{ background: COLORS.card, color: COLORS.text, borderColor: COLORS.border }}
+//                 >
+//                   Prev
+//                 </button>
+//                 <div className="text-xs" style={{ color: COLORS.dim }}>
+//                   {pageSafe} / {totalPages}
+//                 </div>
+//                 <button
+//                   onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+//                   disabled={pageSafe >= totalPages}
+//                   className="px-3 py-1.5 rounded-lg text-xs font-semibold border disabled:opacity-50 hover:bg-slate-50"
+//                   style={{ background: COLORS.card, color: COLORS.text, borderColor: COLORS.border }}
+//                 >
+//                   Next
+//                 </button>
+//               </div>
+//             </div>
+//           )}
+//         </div>
+//       </div>
+
+//       {/* Detail Drawer */}
+//       {openDetail && (
+//         <div className="fixed inset-0 z-40">
+//           {/* Backdrop */}
+//           <div
+//             className="absolute inset-0 bg-black/30"
+//             onClick={closeDetail}
+//           />
+//           {/* Panel */}
+//           <div
+//             className="absolute right-0 top-0 h-full w-full sm:w-[560px] shadow-2xl border-l overflow-y-auto"
+//             style={{ background: COLORS.card, borderColor: COLORS.border }}
+//           >
+//             <div className="sticky top-0 px-4 py-3 flex items-center justify-between border-b bg-white">
+//               <div className="flex items-center gap-2">
+//                 <FileAudio size={18} color={COLORS.primary} />
+//                 <div className="font-semibold" style={{ color: COLORS.text }}>
+//                   Call Detail
+//                 </div>
+//               </div>
+//               <button
+//                 onClick={closeDetail}
+//                 className="p-2 rounded-lg border hover:bg-slate-50"
+//                 style={{ background: COLORS.card, borderColor: COLORS.border }}
+//               >
+//                 <X size={16} color={COLORS.dim} />
+//               </button>
+//             </div>
+
+//             {/* Body */}
+//             <div className="p-4 space-y-4">
+//               {detailLoading ? (
+//                 <div className="flex items-center gap-3">
+//                   <Loader2 className="animate-spin" color={COLORS.primary} />
+//                   <span style={{ color: COLORS.dim }}>Loading…</span>
+//                 </div>
+//               ) : !detail ? (
+//                 <div style={{ color: COLORS.dim }}>No detail available.</div>
+//               ) : (
+//                 <>
+//                   {/* Summary Cards */}
+//                   <div className="grid grid-cols-2 gap-3">
+//                     <MiniCard label="Status" value={statusProbe?.status || detail?.status || "—"} />
+//                     <MiniCard label="Ended Reason" value={detail?.ended_reason || detail?.call_ended_reason || "—"} />
+//                     <MiniCard label="Duration" value={fmtDuration(detail?.call_duration)} />
+//                     <MiniCard label="Cost" value={`$${prettyNum(detail?.cost ?? 0)}`} />
+//                   </div>
+
+//                   {/* Timestamps */}
+//                   <div className="grid grid-cols-2 gap-3">
+//                     <MiniCard label="Started" value={fmtDateTime(detail?.call_started_at || detail?.started_at || detail?.startedAt)} />
+//                     <MiniCard label="Ended" value={fmtDateTime(detail?.call_ended_at || detail?.ended_at || detail?.endedAt)} />
+//                   </div>
+
+//                   {/* Recording */}
+//                   {detail?.recording_url && detail.recording_url !== "N/A" && (
+//                     <div
+//                       className="p-3 rounded-xl border"
+//                       style={{ background: COLORS.panel, borderColor: COLORS.border }}
+//                     >
+//                       <div className="flex items-center gap-2 mb-2">
+//                         <PlayCircle size={18} color={COLORS.primary} />
+//                         <div className="text-sm font-semibold" style={{ color: COLORS.text }}>
+//                           Recording
+//                         </div>
+//                       </div>
+//                       <audio ref={audioRef} controls className="w-full">
+//                         <source src={detail.recording_url} />
+//                       </audio>
+//                       <div className="mt-2 text-xs flex items-center gap-2" style={{ color: COLORS.dim }}>
+//                         <button
+//                           onClick={() => copy(detail.recording_url, "Recording URL copied")}
+//                           className="underline-offset-2 hover:underline"
+//                         >
+//                           Copy URL
+//                         </button>
+//                       </div>
+//                     </div>
+//                   )}
+
+//                   {/* Assistant & Variables */}
+//                   <div
+//                     className="p-3 rounded-xl border"
+//                     style={{ background: COLORS.panel, borderColor: COLORS.border }}
+//                   >
+//                     <div className="text-sm font-semibold mb-2" style={{ color: COLORS.text }}>
+//                       Assistant
+//                     </div>
+//                     <div className="text-xs" style={{ color: COLORS.dim }}>
+//                       ID: {detail?.assistant?.id || "—"}
+//                     </div>
+//                     <div className="text-xs" style={{ color: COLORS.dim }}>
+//                       Name: {detail?.assistant?.name || "—"}
+//                     </div>
+
+//                     <div className="mt-3 text-sm font-semibold" style={{ color: COLORS.text }}>
+//                       Variables
+//                     </div>
+//                     <div className="mt-1 grid grid-cols-2 gap-2 text-xs" style={{ color: COLORS.dim }}>
+//                       {detail?.variableValues ? (
+//                         Object.entries(detail.variableValues).map(([k, v]) => (
+//                           <div key={k} className="truncate">
+//                             <span className="opacity-70">{k}:</span> {String(v ?? "—")}
+//                           </div>
+//                         ))
+//                       ) : (
+//                         <div>—</div>
+//                       )}
+//                     </div>
+//                   </div>
+
+//                   {/* Transcript */}
+//                   <div
+//                     className="p-3 rounded-xl border"
+//                     style={{ background: COLORS.panel, borderColor: COLORS.border }}
+//                   >
+//                     <div className="flex items-center justify-between mb-2">
+//                       <div className="text-sm font-semibold" style={{ color: COLORS.text }}>
+//                         Transcript
+//                       </div>
+//                       <div className="flex items-center gap-2">
+//                         <button
+//                           onClick={() => probeStatus(detailId)}
+//                           className="px-2 py-1.5 rounded-lg text-xs font-semibold border hover:bg-slate-50"
+//                           style={{ background: COLORS.card, color: COLORS.text, borderColor: COLORS.border }}
+//                         >
+//                           Check Status
+//                         </button>
+//                         <button
+//                           onClick={() => refreshTranscript(detailId)}
+//                           className="px-2 py-1.5 rounded-lg text-xs font-semibold border hover:bg-cyan-50"
+//                           style={{ background: COLORS.card, color: COLORS.cyan, borderColor: COLORS.border }}
+//                         >
+//                           Refresh
+//                         </button>
+//                       </div>
+//                     </div>
+
+//                     <div
+//                       className="text-xs whitespace-pre-wrap leading-relaxed"
+//                       style={{ color: COLORS.dim, maxHeight: 280, overflow: "auto" }}
+//                     >
+//                       {detail?.transcript && detail.transcript !== "No transcript available"
+//                         ? detail.transcript
+//                         : "No transcript available"}
+//                     </div>
+//                   </div>
+
+//                   {/* Danger zone */}
+//                   <div className="flex items-center justify-between">
+//                     <div className="text-xs" style={{ color: COLORS.dim }}>
+//                       Delete this call log (and attempt VAPI deletion)
+//                     </div>
+//                     <button
+//                       onClick={() => doDelete(detailId)}
+//                       className="px-3 py-2 rounded-lg text-xs font-semibold border hover:bg-red-50"
+//                       style={{ background: COLORS.card, color: COLORS.danger, borderColor: COLORS.border }}
+//                     >
+//                       <Trash2 size={14} />
+//                       &nbsp;Delete
+//                     </button>
+//                   </div>
+//                 </>
+//               )}
+//             </div>
+//           </div>
+//         </div>
+//       )}
+//     </div>
+//   );
+// }
+
+// /* ──────────────────────────────────────────────────────────────────────────
+//  * Mobile Card Component
+//  * ────────────────────────────────────────────────────────────────────────── */
+// function CallCard({ c, onOpen, onDelete }) {
+//   return (
+//     <div
+//       className="rounded-2xl border p-4 flex flex-col gap-3"
+//       style={{ background: COLORS.card, borderColor: COLORS.border }}
+//     >
+//       <div className="flex items-start gap-3">
+//         <div
+//           className="w-10 h-10 rounded-xl flex items-center justify-center"
+//           style={{ background: "#EEF2FF", border: `1px solid ${COLORS.border}` }}
+//         >
+//           <Phone size={18} color={COLORS.primary} />
+//         </div>
+//         <div className="flex-1 min-w-0">
+//           <div className="font-semibold truncate" style={{ color: COLORS.text }}>
+//             {c.customer_name || "—"}
+//           </div>
+//           <div className="text-xs flex items-center gap-1 mt-0.5" style={{ color: COLORS.dim }}>
+//             <span>ID:</span>
+//             <span className="truncate">{c.call_id}</span>
+//           </div>
+//         </div>
+//       </div>
+
+//       <div className="grid grid-cols-2 gap-2 text-sm">
+//         <InfoRow label="Number" value={maskPhone(c.customer_number)} />
+//         <InfoRow label="Status" value={
+//           <span className="inline-flex items-center gap-2">
+//             <Badge
+//               color={
+//                 c.status === "completed"
+//                   ? COLORS.success
+//                   : c.status === "failed"
+//                   ? COLORS.danger
+//                   : COLORS.primary
+//               }
+//               text={c.status || "Unknown"}
+//             />
+//           </span>
+//         }/>
+//         <InfoRow label="Reason" value={c.call_ended_reason ?? "—"} />
+//         <InfoRow label="Started" value={fmtDateTime(c.call_started_at)} />
+//         <InfoRow label="Duration" value={fmtDuration(c.call_duration)} />
+//         <InfoRow label="Lead ID" value={c.lead_id ?? "—"} />
+//       </div>
+
+//       <div className="flex items-center justify-end gap-2 pt-1">
+//         <button
+//           onClick={onOpen}
+//           className="px-3 py-2 rounded-lg text-xs font-semibold border hover:bg-slate-50"
+//           style={{ background: COLORS.card, color: COLORS.text, borderColor: COLORS.border }}
+//           title="Open details"
+//         >
+//           <Info size={14} color={COLORS.purple} />
+//           &nbsp;Detail
+//         </button>
+//         <button
+//           onClick={onDelete}
+//           className="px-3 py-2 rounded-lg text-xs font-semibold border hover:bg-red-50"
+//           style={{ background: COLORS.card, color: COLORS.danger, borderColor: COLORS.border }}
+//           title="Delete"
+//         >
+//           <Trash2 size={14} />
+//           &nbsp;Delete
+//         </button>
+//       </div>
+//     </div>
+//   );
+// }
+
+// function InfoRow({ label, value }) {
+//   return (
+//     <div className="flex flex-col rounded-lg p-2" style={{ background: COLORS.panel, border: `1px dashed ${COLORS.border}` }}>
+//       <span className="text-[10px] uppercase tracking-wide font-semibold" style={{ color: COLORS.dim }}>
+//         {label}
+//       </span>
+//       <span className="text-sm truncate" style={{ color: COLORS.text }}>
+//         {value}
+//       </span>
+//     </div>
+//   );
+// }
+
+// /* ──────────────────────────────────────────────────────────────────────────
+//  * Small UI pieces
+//  * ────────────────────────────────────────────────────────────────────────── */
+// function Badge({ color, text }) {
+//   return (
+//     <span
+//       className="px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wide"
+//       style={{ background: `${color}1A`, color }}
+//     >
+//       {text}
+//     </span>
+//   );
+// }
+
+// function StatTile({ icon, label, value }) {
+//   return (
+//     <div
+//       className="p-3 rounded-xl border"
+//       style={{ background: COLORS.card, borderColor: COLORS.border }}
+//     >
+//       <div className="flex items-center gap-2">
+//         {icon}
+//         <div className="text-xs" style={{ color: COLORS.dim }}>{label}</div>
+//       </div>
+//       <div className="mt-1 text-lg font-bold" style={{ color: COLORS.text }}>
+//         {value}
+//       </div>
+//     </div>
+//   );
+// }
+
+// function MiniCard({ label, value }) {
+//   return (
+//     <div
+//       className="p-3 rounded-xl border"
+//       style={{ background: COLORS.card, borderColor: COLORS.border }}
+//     >
+//       <div className="text-xs" style={{ color: COLORS.dim }}>{label}</div>
+//       <div className="text-sm font-semibold truncate" style={{ color: COLORS.text }}>
+//         {value}
+//       </div>
+//     </div>
+//   );
+// }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+"use client";
+
+import React, { useEffect, useMemo, useRef, useState } from "react";
+import {
+  Phone,
+  PlayCircle,
+  RefreshCw,
+  Search,
+  Filter,
+  Loader2,
+  X,
+  Trash2,
+  FileAudio,
+  Info,
+  Clock,
+  DollarSign,
+  CheckCircle2,
+  AlertTriangle,
+  Radio,
+  Copy,
+} from "lucide-react";
 import { toast } from "react-toastify";
 
-// Color scheme for consistency with AssistantList
-const colors = {
-  primary: "#4F46E5", // indigo-600
-  secondary: "#10B981", // emerald-500
-  danger: "#EF4444", // red-500
-  text: "#111827", // gray-900
-  lightText: "#6B7280", // gray-500
-  border: "#E5E7EB", // gray-200
-  background: "#F3F4F6", // gray-100
-  card: "#FFFFFF", // white
-  hover: "#F9FAFB", // gray-50
+/* ──────────────────────────────────────────────────────────────────────────
+ * Config
+ * ────────────────────────────────────────────────────────────────────────── */
+const API_URL = import.meta.env?.VITE_API_URL || "http://localhost:8000";
+const API_BASE = `${API_URL}/api`;
+
+/* Light theme — primary: white; secondary: blue/cyan/purple accents */
+const COLORS = {
+  bg: "#ffffff",         // primary white
+  panel: "#F8FAFC",      // slate-50
+  card: "#ffffff",       // pure white cards
+  border: "#E5E7EB",     // gray-200
+  text: "#0F172A",       // slate-900
+  dim: "#64748B",        // slate-500
+  primary: "#4F46E5",    // indigo-600
+  success: "#16A34A",    // green-600
+  danger: "#DC2626",     // red-600
+  amber: "#D97706",      // amber-600
+  cyan: "#06B6D4",       // cyan-500
+  purple: "#7C3AED",     // violet-600
+  row: "#F9FAFB",        // row alt
+  gradFrom: "#6366F1",   // indigo-500
+  gradTo: "#06B6D4",     // cyan-500
 };
 
-export default function CallHistory() {
-  const [purchasedNumbers, setPurchasedNumbers] = useState([]);
-  const [filteredNumbers, setFilteredNumbers] = useState([]);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [currentPage, setCurrentPage] = useState(1);
-  const [deleteModal, setDeleteModal] = useState({ open: false, number: null });
-  const [deleting, setDeleting] = useState(false);
-  const [error, setError] = useState(null);
-  const itemsPerPage = 10;
-  const navigate = useNavigate();
-  const modalRef = useRef(null);
+/* Small helpers */
+const cx = (...arr) => arr.filter(Boolean).join(" ");
+const prettyNum = (n) =>
+  n?.toLocaleString?.(undefined, { maximumFractionDigits: 2 }) ?? String(n ?? "");
 
-  // Fetch purchased numbers history
-  const fetchPurchasedNumbers = async () => {
-    setLoading(true);
-    setError(null);
+const fmtDateTime = (iso) => {
+  if (!iso) return "—";
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return "—";
+  return d.toLocaleString();
+};
+
+const fmtDuration = (seconds) => {
+  if (seconds == null) return "—";
+  const s = Math.max(0, Math.round(seconds));
+  const m = Math.floor(s / 60);
+  const rem = s % 60;
+  return `${m}m ${rem}s`;
+};
+
+const maskPhone = (raw) => {
+  if (!raw) return "—";
+  const cleaned = String(raw).replace(/\D/g, "");
+  if (cleaned.length < 10) return raw;
+  const tail = cleaned.slice(-10);
+  const cc = cleaned.slice(0, cleaned.length - 10) || "1";
+  return `+${cc} (${tail.slice(0, 3)}) ${tail.slice(3, 6)}-${tail.slice(6)}`;
+};
+
+/* Admin endpoints (no /user/*) */
+const endpoints = {
+  ALL_LOGS: () => `${API_BASE}/all_call_logs`,
+  CALL_DETAIL: (id) => `${API_BASE}/call/${id}`,
+  DELETE_CALL: (id) => `${API_BASE}/call_log/${id}`,
+  UPDATE_MISSING: () => `${API_BASE}/update_calls`,
+  REFRESH_TRANSCRIPT: (id) => `${API_BASE}/refresh-transcript/${id}`,
+  CALL_STATUS: (id) => `${API_BASE}/call-status/${id}`,
+  SYNC_INBOUND: () => `${API_BASE}/sync-inbound-calls`,
+};
+
+/* Auth fetch */
+async function authedFetch(url, options = {}) {
+  const token = localStorage.getItem("token");
+  if (!token) throw new Error("Authentication required. Please log in.");
+  const res = await fetch(url, {
+    ...options,
+    headers: {
+      "Authorization": `Bearer ${token}`,
+      "Content-Type": "application/json",
+      ...(options.headers || {}),
+    },
+  });
+  if (!res.ok) {
+    let msg = `${res.status} ${res.statusText}`;
     try {
-      const token = localStorage.getItem("token");
-      if (!token) {
-        throw new Error("Authentication required. Please log in.");
-      }
-      const response = await fetch("http://localhost:8000/api/twillosendall", {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-      });
-      if (!response.ok) {
-        let data;
-        try {
-          data = await response.json();
-        } catch (e) {
-          data = { message: "Failed to parse server response" };
-        }
-        throw new Error(
-          data.message || `HTTP error! Status: ${response.status}`
-        );
-      }
-      const data = await response.json();
-      if (Array.isArray(data.numbers)) {
-        if (data.numbers.some((num) => !num.hasOwnProperty("username"))) {
-          console.warn("Some numbers are missing the 'username' field");
-        }
-        setPurchasedNumbers(data.numbers);
-        setFilteredNumbers(data.numbers);
-        console.log("Fetched numbers:", data.numbers);
-      } else {
-        console.warn("API response does not contain a numbers array:", data);
-        setPurchasedNumbers([]);
-        setFilteredNumbers([]);
-      }
-    } catch (error) {
-      console.error("Error fetching purchased numbers:", error);
-      setError(error.message);
-      setPurchasedNumbers([]);
-      setFilteredNumbers([]);
-      toast.error(error.message || "Failed to fetch purchased numbers.");
+      const data = await res.json();
+      msg = data?.detail || data?.message || msg;
+    } catch {}
+    throw new Error(msg);
+  }
+  return res;
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+ * Main Page
+ * ────────────────────────────────────────────────────────────────────────── */
+export default function AdminPhoneCallsPage() {
+  const [calls, setCalls] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [polling, setPolling] = useState(true);
+
+  // Filters
+  const [q, setQ] = useState("");
+  const [status, setStatus] = useState("any");
+  const [reason, setReason] = useState("any");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+
+  // Pagination
+  const [page, setPage] = useState(1);
+  const pageSize = 12;
+
+  // Selection / detail
+  const [openDetail, setOpenDetail] = useState(false);
+  const [detailId, setDetailId] = useState(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+  const [detail, setDetail] = useState(null);
+  const [statusProbe, setStatusProbe] = useState(null);
+  const audioRef = useRef(null);
+
+  // Bulk / top actions loading
+  const [busyAction, setBusyAction] = useState(false);
+
+  // Delete modal
+  const [deleteTarget, setDeleteTarget] = useState(null);
+  const [deleteBusy, setDeleteBusy] = useState(false);
+
+  /* Initial load + polling */
+  useEffect(() => {
+    loadAll();
+  }, []);
+
+  useEffect(() => {
+    if (!polling) return;
+    const t = setInterval(loadAll, 15_000);
+    return () => clearInterval(t);
+  }, [polling]);
+
+  async function loadAll() {
+    try {
+      setLoading(true);
+      const res = await authedFetch(endpoints.ALL_LOGS());
+      const data = await res.json();
+
+      // Normalize typical fields from CallLog model
+      const norm = (data || []).map((c) => ({
+        id: c.id ?? null,
+        call_id: c.call_id ?? c.id ?? "",
+        customer_number: c.customer_number ?? "",
+        customer_name: c.customer_name ?? "",
+        status: c.status ?? "Unknown",
+        call_ended_reason: c.call_ended_reason ?? null,
+        call_started_at: c.call_started_at ?? c.created_at ?? null,
+        call_ended_at: c.call_ended_at ?? null,
+        call_duration: c.call_duration ?? null,
+        cost: typeof c.cost === "number" ? c.cost : parseFloat(c.cost || 0),
+        lead_id: c.lead_id ?? null,
+      }));
+
+      setCalls(norm);
+    } catch (err) {
+      console.error(err);
+      toast.error(`Load failed: ${err.message}`);
     } finally {
       setLoading(false);
     }
-  };
+  }
 
-  // Filter numbers based on search term
-  useEffect(() => {
-    const filtered = purchasedNumbers.filter((number) =>
-      (number.username || "").toLowerCase().includes(searchTerm.toLowerCase())
-    );
-    console.log("Filtering numbers:", {
-      searchTerm,
-      filteredCount: filtered.length,
-    });
-    setFilteredNumbers(filtered);
-    setCurrentPage(1);
-  }, [searchTerm, purchasedNumbers]);
+  /* Filtering */
+  const filtered = useMemo(() => {
+    return (calls || []).filter((c) => {
+      const text = `${c.call_id} ${c.customer_number} ${c.customer_name} ${c.status} ${c.call_ended_reason ?? ""}`.toLowerCase();
+      if (q && !text.includes(q.toLowerCase())) return false;
 
-  // Delete number
-  const handleDelete = async () => {
-    if (!deleteModal.number) return;
-    setDeleting(true);
-    try {
-      const token = localStorage.getItem("token");
-      if (!token) {
-        throw new Error("Authentication required. Please log in.");
-      }
-      const id =
-        deleteModal.number.id ||
-        deleteModal.number.sid ||
-        deleteModal.number.phone_number;
-      const response = await fetch(
-        `http://localhost:8000/api/callhistory/${id}`,
-        {
-          method: "DELETE",
-          headers: {
-            Authorization: `Bearer ${token}`,
-            "Content-Type": "application/json",
-          },
+      if (status !== "any" && (c.status || "Unknown") !== status) return false;
+
+      if (reason !== "any") {
+        const r = (c.call_ended_reason || "Unknown").toLowerCase();
+        if (reason === "null") {
+          if (c.call_ended_reason != null) return false;
+        } else if (!r.includes(reason.toLowerCase())) {
+          return false;
         }
-      );
-      if (!response.ok) {
-        let data;
-        try {
-          data = await response.json();
-        } catch (e) {
-          data = { message: "Failed to parse server response" };
-        }
-        throw new Error(data.message || "Failed to delete number");
       }
-      setPurchasedNumbers((prev) =>
-        prev.filter(
-          (n) =>
-            (n.id || n.sid || n.phone_number) !==
-            (deleteModal.number.id ||
-              deleteModal.number.sid ||
-              deleteModal.number.phone_number)
-        )
-      );
-      setFilteredNumbers((prev) =>
-        prev.filter(
-          (n) =>
-            (n.id || n.sid || n.phone_number) !==
-            (deleteModal.number.id ||
-              deleteModal.number.sid ||
-              deleteModal.number.phone_number)
-        )
-      );
-      setDeleteModal({ open: false, number: null });
-      toast.success("Number deleted successfully!");
-    } catch (err) {
-      toast.error("Failed to delete number: " + err.message);
-    } finally {
-      setDeleting(false);
-    }
-  };
 
-  // Load purchased numbers on component mount with polling
-  useEffect(() => {
-    fetchPurchasedNumbers();
-    const interval = setInterval(fetchPurchasedNumbers, 10000);
-    return () => clearInterval(interval);
-  }, []);
-
-  // Focus management for delete modal
-  useEffect(() => {
-    if (deleteModal.open && modalRef.current) {
-      modalRef.current.focus();
-    }
-  }, [deleteModal.open]);
-
-  // Format phone number for display
-  const formatPhoneNumber = (number) => {
-    if (!number) return "N/A";
-    const cleaned = String(number).replace(/\D/g, "");
-    const match = cleaned.match(/^1?(\d{3})(\d{3})(\d{4})$/);
-    if (match) {
-      return `+1 (${match[1]}) ${match[2]}-${match[3]}`;
-    }
-    return number;
-  };
-
-  // Format date for display
-  const formatDate = (dateString) => {
-    if (!dateString) return "N/A";
-    const date = new Date(dateString);
-    if (isNaN(date.getTime())) return "N/A";
-    return date.toLocaleString(undefined, {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
+      if (dateFrom) {
+        const start = new Date(dateFrom);
+        const ts = new Date(c.call_started_at || c.call_ended_at || 0);
+        if (isFinite(start) && isFinite(ts) && ts < start) return false;
+      }
+      if (dateTo) {
+        const end = new Date(dateTo);
+        const ts = new Date(c.call_started_at || c.call_ended_at || 0);
+        if (isFinite(end) && isFinite(ts) && ts > new Date(end.getTime() + 86399000)) return false;
+      }
+      return true;
     });
-  };
+  }, [calls, q, status, reason, dateFrom, dateTo]);
 
-  // Get region name from code
-  const getRegionName = (regionCode) => {
-    if (!regionCode) return "Unknown";
-    const regionMap = {
-      KY: "Kentucky",
-      CA: "California",
-      NY: "New York",
-      TX: "Texas",
-      FL: "Florida",
-      IL: "Illinois",
-      PA: "Pennsylvania",
-      OH: "Ohio",
-      GA: "Georgia",
-      NC: "North Carolina",
-      MI: "Michigan",
-      NJ: "New Jersey",
-      VA: "Virginia",
-      WA: "Washington",
-      AZ: "Arizona",
-      MA: "Massachusetts",
-      TN: "Tennessee",
-      IN: "Indiana",
-      MO: "Missouri",
-      MD: "Maryland",
-      WI: "Wisconsin",
-      CO: "Colorado",
-      MN: "Minnesota",
-      SC: "South Carolina",
-      AL: "Alabama",
-      LA: "Louisiana",
-      OR: "Oregon",
-      OK: "Oklahoma",
-      CT: "Connecticut",
-      IA: "Iowa",
-      MS: "Mississippi",
-      AR: "Arkansas",
-      UT: "Utah",
-      KS: "Kansas",
-      NV: "Nevada",
-      NM: "New Mexico",
-      NE: "Nebraska",
-      WV: "West Virginia",
-      ID: "Idaho",
-      HI: "Hawaii",
-      NH: "New Hampshire",
-      ME: "Maine",
-      MT: "Montana",
-      RI: "Rhode Island",
-      DE: "Delaware",
-      SD: "South Dakota",
-      ND: "North Dakota",
-      AK: "Alaska",
-      VT: "Vermont",
-      WY: "Wyoming",
+  /* Pagination pages */
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+  const pageSafe = Math.min(page, totalPages);
+  const pageSlice = useMemo(() => {
+    const start = (pageSafe - 1) * pageSize;
+    return filtered.slice(start, start + pageSize);
+  }, [filtered, pageSafe]);
+
+  /* Totals */
+  const totals = useMemo(() => {
+    const sumCost = filtered.reduce((acc, c) => acc + (Number(c.cost) || 0), 0);
+    const sumDur = filtered.reduce((acc, c) => acc + (Number(c.call_duration) || 0), 0);
+    return {
+      count: filtered.length,
+      cost: sumCost,
+      duration: sumDur,
     };
-    return regionMap[regionCode] || regionCode;
-  };
+  }, [filtered]);
 
-  // Calculate pagination
-  const totalPages = Math.ceil((filteredNumbers.length || 0) / itemsPerPage);
-  const indexOfLastItem = Math.min(
-    (currentPage || 1) * itemsPerPage,
-    filteredNumbers.length || 0
-  );
-  const indexOfFirstItem = Math.max(0, indexOfLastItem - itemsPerPage);
-  const currentItems = filteredNumbers.slice(indexOfFirstItem, indexOfLastItem);
+  function resetFilters() {
+    setQ("");
+    setStatus("any");
+    setReason("any");
+    setDateFrom("");
+    setDateTo("");
+    setPage(1);
+  }
 
-  // Log pagination values for debugging
-  useEffect(() => {
-    console.log("Pagination values:", {
-      currentPage,
-      totalPages,
-      indexOfFirstItem,
-      indexOfLastItem,
-      filteredNumbersLength: filteredNumbers.length,
-    });
-  }, [
-    currentPage,
-    totalPages,
-    indexOfFirstItem,
-    indexOfLastItem,
-    filteredNumbers,
-  ]);
+  /* Detail drawer */
+  async function openCallDetail(id) {
+    try {
+      setDetailId(id);
+      setOpenDetail(true);
+      setDetailLoading(true);
 
-  // Handle pagination
-  const handleNextPage = () => {
-    if (currentPage < totalPages) {
-      setCurrentPage((prev) => prev + 1);
+      const [detailRes, statusRes] = await Promise.all([
+        authedFetch(endpoints.CALL_DETAIL(id)),
+        authedFetch(endpoints.CALL_STATUS(id)),
+      ]);
+
+      const d = await detailRes.json();
+      const s = await statusRes.json();
+
+      setDetail(d);
+      setStatusProbe(s);
+    } catch (err) {
+      toast.error(`Failed to load call detail: ${err.message}`);
+    } finally {
+      setDetailLoading(false);
     }
-  };
+  }
 
-  const handlePrevPage = () => {
-    if (currentPage > 1) {
-      setCurrentPage((prev) => prev - 1);
-    }
-  };
+  function closeDetail() {
+    setOpenDetail(false);
+    setDetailId(null);
+    setDetail(null);
+    setStatusProbe(null);
+  }
 
-  const handlePageClick = (pageNumber) => {
-    if (pageNumber >= 1 && pageNumber <= totalPages) {
-      setCurrentPage(pageNumber);
-    }
-  };
+  /* Delete flow with stylish modal */
+  function askDelete(call) {
+    setDeleteTarget(call); // opens modal
+  }
 
-  // Defensive: reset to page 1 if filteredNumbers changes and currentPage is out of range
-  useEffect(() => {
-    if (currentPage > totalPages && totalPages > 0) {
-      setCurrentPage(1);
+  async function confirmDelete() {
+    if (!deleteTarget) return;
+    try {
+      setDeleteBusy(true);
+      const id = deleteTarget.call_id;
+      const res = await authedFetch(endpoints.DELETE_CALL(id), { method: "DELETE" });
+      await res.json().catch(() => {});
+      toast.success("Call log deleted");
+      setCalls((prev) => prev.filter((c) => c.call_id !== id));
+      if (detailId === id) closeDetail();
+      setDeleteTarget(null);
+    } catch (err) {
+      toast.error(`Delete failed: ${err.message}`);
+    } finally {
+      setDeleteBusy(false);
     }
-  }, [filteredNumbers, totalPages, currentPage]);
+  }
+
+  /* Other actions */
+  async function refreshTranscript(id) {
+    try {
+      setBusyAction(true);
+      const res = await authedFetch(endpoints.REFRESH_TRANSCRIPT(id), { method: "POST" });
+      const data = await res.json();
+      toast.success(data?.message || "Transcript refreshed");
+      if (detailId === id) {
+        setDetail((prev) => ({ ...(prev || {}), transcript: data?.transcript ?? prev?.transcript }));
+      }
+    } catch (err) {
+      toast.error(`Refresh failed: ${err.message}`);
+    } finally {
+      setBusyAction(false);
+    }
+  }
+
+  async function repairMissing() {
+    try {
+      setBusyAction(true);
+      const res = await authedFetch(endpoints.UPDATE_MISSING());
+      const data = await res.json();
+      toast.success(data?.message || "Updated missing details");
+      await loadAll();
+    } catch (err) {
+      toast.error(`Update failed: ${err.message}`);
+    } finally {
+      setBusyAction(false);
+    }
+  }
+
+  async function syncInbound() {
+    try {
+      setBusyAction(true);
+      const res = await authedFetch(endpoints.SYNC_INBOUND(), { method: "POST" });
+      const data = await res.json();
+      toast.success(data?.detail || "Synced inbound calls");
+      await loadAll();
+    } catch (err) {
+      toast.error(`Sync failed: ${err.message}`);
+    } finally {
+      setBusyAction(false);
+    }
+  }
+
+  async function probeStatus(id) {
+    try {
+      const res = await authedFetch(endpoints.CALL_STATUS(id));
+      const s = await res.json();
+      setStatusProbe(s);
+      toast.success("Status updated");
+    } catch (err) {
+      toast.error(`Status check failed: ${err.message}`);
+    }
+  }
+
+  /* Copy helper */
+  function copy(text, label = "Copied") {
+    navigator.clipboard.writeText(String(text ?? "")).then(
+      () => toast.success(label),
+      () => toast.error("Copy failed")
+    );
+  }
 
   return (
-    <div
-      className="min-h-screen"
-      style={{ backgroundColor: colors.background }}
-    >
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
-        {/* Delete Modal */}
-        {deleteModal.open && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center">
-            {/* Backdrop */}
+    <div className="min-h-screen" style={{ background: COLORS.bg }}>
+      {/* Hero/Header (scrolls with page, not sticky) */}
+      <div className="border-b">
+        <div className="max-w-7xl mx-auto px-4 py-8">
+          <div className="flex items-center gap-4">
             <div
-              className="absolute inset-0 bg-opacity-40 backdrop-blur-sm transition-opacity"
-              onClick={() =>
-                !deleting && setDeleteModal({ open: false, number: null })
-              }
-            ></div>
-            {/* Modal */}
-            <div
-              className="relative z-10 bg-white rounded-xl shadow-xl max-w-md w-full mx-4 p-6"
+              className="w-12 h-12 rounded-2xl flex items-center justify-center shadow-sm"
               style={{
-                backgroundColor: colors.card,
-                borderColor: colors.border,
+                background:
+                  "linear-gradient(135deg, rgba(99,102,241,0.12), rgba(6,182,212,0.12))",
+                border: `1px solid ${COLORS.border}`,
               }}
-              ref={modalRef}
-              tabIndex={-1}
-              aria-labelledby="delete-modal-title"
             >
-              <div className="flex items-center space-x-3 mb-4">
-                <Trash2 className="w-6 h-6 text-red-500" />
-                <h3
-                  id="delete-modal-title"
-                  className="text-lg font-bold"
-                  style={{ color: colors.text }}
-                >
-                  Delete Number
-                </h3>
+              <Phone size={22} color={COLORS.primary} />
+            </div>
+            <div>
+              <div
+                className="text-2xl md:text-3xl font-extrabold tracking-tight"
+                style={{ color: COLORS.text }}
+              >
+                Admin · Phone Calls
               </div>
-              <div className="mb-4" style={{ color: colors.lightText }}>
-                Are you sure you want to delete this number?
-                <div
-                  className="mt-2 font-semibold"
-                  style={{ color: colors.text }}
-                >
-                  {formatPhoneNumber(deleteModal.number?.phone_number)}
-                </div>
-                <div
-                  className="text-xs mt-1"
-                  style={{ color: colors.lightText }}
-                >
-                  Created: {formatDate(deleteModal.number?.created_at)}
-                </div>
-              </div>
-              <div className="flex justify-end space-x-2">
-                <button
-                  className="px-4 py-2 rounded-lg font-semibold transition-colors hover:bg-gray-200"
-                  style={{
-                    backgroundColor: colors.background,
-                    color: colors.text,
-                  }}
-                  onClick={() =>
-                    !deleting && setDeleteModal({ open: false, number: null })
-                  }
-                  disabled={deleting}
-                >
-                  Cancel
-                </button>
-                <button
-                  className="px-4 py-2 rounded-lg font-semibold transition-colors hover:bg-red-600 disabled:opacity-50"
-                  style={{ backgroundColor: colors.danger, color: "white" }}
-                  onClick={handleDelete}
-                  disabled={deleting}
-                >
-                  {deleting ? "Deleting..." : "Delete"}
-                </button>
+              <div className="text-sm" style={{ color: COLORS.dim }}>
+                Full control: logs, transcripts, recordings
               </div>
             </div>
           </div>
-        )}
 
-        {/* Header */}
-        <div
-          className="mb-8 bg-white rounded-xl shadow-sm border py-4 px-6"
-          style={{ borderColor: colors.border }}
-        >
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between space-y-4 sm:space-y-0">
-            <div className="flex flex-col sm:flex-row sm:items-center space-y-4 sm:space-y-0 sm:space-x-4 w-full">
-              <div className="flex items-center space-x-4 flex-1">
-                <div
-                  className="w-12 h-12 sm:w-16 sm:h-16 rounded-lg flex items-center justify-center flex-shrink-0"
-                  style={{ backgroundColor: colors.primary }}
-                >
-                  <Phone className="w-6 h-6 sm:w-8 sm:h-8 text-white" />
-                </div>
-                <div className="flex-1">
-                  <h1
-                    className="text-2xl sm:text-3xl lg:text-4xl font-bold"
-                    style={{ color: colors.text }}
-                  >
-                    Purchased Numbers
-                  </h1>
-                  <p
-                    className="text-base sm:text-lg mt-1 sm:mt-2"
-                    style={{ color: colors.lightText }}
-                  >
-                    View your purchased phone numbers
-                  </p>
-                </div>
-              </div>
-              <div className="relative w-full sm:w-64">
-                <Search
-                  className="absolute left-3 top-1/2 transform -translate-y-1/2 w-5 h-5"
-                  style={{ color: colors.lightText }}
-                />
-                <input
-                  type="text"
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  placeholder="Search by username..."
-                  className="w-full pl-10 pr-4 py-2 rounded-lg border focus:outline-none focus:ring-2 focus:ring-indigo-500"
-                  style={{
-                    borderColor: colors.border,
-                    backgroundColor: colors.card,
-                    color: colors.text,
-                  }}
-                />
-              </div>
-            </div>
+          {/* Quick actions under header */}
+          <div className="mt-4 flex flex-wrap items-center gap-2">
             <button
-              onClick={() => {
-                try {
-                  navigate("/admin/callhistory");
-                } catch (err) {
-                  toast.error("Navigation failed: " + err.message);
-                }
+              onClick={() => setPolling((p) => !p)}
+              className="px-3 py-2 rounded-lg text-sm font-semibold border transition hover:opacity-90"
+              style={{
+                background: "#FFFFFF",
+                color: polling ? COLORS.primary : COLORS.text,
+                borderColor: COLORS.border,
+                boxShadow: "0 1px 0 rgba(0,0,0,0.02)",
               }}
-              className="px-4 py-2 sm:px-6 sm:py-3 rounded-lg font-bold transition-colors hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2"
-              style={{ backgroundColor: colors.primary, color: "white" }}
-              aria-label="Buy Numbers"
+              title={polling ? "Auto-refresh is ON" : "Auto-refresh is OFF"}
             >
-              <div className="flex items-center">
-                <Phone className="w-4 h-4 sm:w-5 sm:h-5 mr-2" />
-                <span className="hidden sm:inline">Buy Numbers</span>
-                <span className="sm:hidden">Buy</span>
-              </div>
+              <span className="inline-flex items-center gap-2">
+                <Radio size={16} />
+                {polling ? "Live" : "Paused"}
+              </span>
+            </button>
+
+            <button
+              onClick={loadAll}
+              className="px-3 py-2 rounded-lg text-sm font-semibold border transition hover:opacity-90"
+              style={{
+                background:
+                  "linear-gradient(135deg, rgba(99,102,241,0.08), rgba(6,182,212,0.08))",
+                color: COLORS.text,
+                borderColor: COLORS.border,
+              }}
+            >
+              <span className="inline-flex items-center gap-2">
+                <RefreshCw size={16} color={COLORS.purple} />
+                Refresh
+              </span>
             </button>
           </div>
         </div>
+      </div>
 
-        {/* Error Message */}
-        {error && (
-          <div
-            className="bg-red-50 border rounded-lg p-4 text-center"
-            style={{ borderColor: colors.border }}
-          >
-            <p className="text-sm" style={{ color: colors.danger }}>
-              {error || "Failed to load purchased numbers"}
-            </p>
-            <button
-              onClick={fetchPurchasedNumbers}
-              className="mt-2 px-4 py-2 rounded-lg font-semibold transition-colors hover:bg-indigo-700"
-              style={{ backgroundColor: colors.primary, color: "white" }}
+      {/* Content */}
+      <div className="max-w-7xl mx-auto px-4 py-8 space-y-8">
+        {/* Actions + Filters */}
+        <div className="grid lg:grid-cols-3 gap-4">
+          <div className="lg:col-span-2">
+            <div
+              className="rounded-2xl p-4 border"
+              style={{
+                background: COLORS.panel,
+                borderColor: COLORS.border,
+                boxShadow: "0 1px 0 rgba(0,0,0,0.02)",
+              }}
             >
-              Retry
-            </button>
-          </div>
-        )}
-
-        {/* Total Count */}
-        <div
-          className="bg-white rounded-xl border p-4 sm:p-6 text-center"
-          style={{ borderColor: colors.border }}
-        >
-          <div
-            className="text-3xl sm:text-4xl font-bold"
-            style={{ color: colors.primary }}
-          >
-            {filteredNumbers.length || 0}
-          </div>
-          <div
-            className="text-sm sm:text-base font-medium mt-2"
-            style={{ color: colors.lightText }}
-          >
-            Total Purchased Numbers
-          </div>
-        </div>
-
-        {/* Purchased Numbers Table */}
-        <div
-          className="bg-white rounded-xl border overflow-hidden"
-          style={{ borderColor: colors.border }}
-          id="purchased-numbers-table"
-        >
-          {/* Header */}
-          <div
-            className="px-4 sm:px-6 py-3 sm:py-4 border-b"
-            style={{
-              borderColor: colors.border,
-              backgroundColor: colors.background,
-            }}
-          >
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between space-y-2 sm:space-y-0">
-              <div className="flex items-center space-x-3">
-                <div
-                  className="w-6 h-6 sm:w-8 sm:h-8 rounded-lg flex items-center justify-center"
-                  style={{ backgroundColor: colors.primary }}
-                >
-                  <Phone className="w-3 h-3 sm:w-4 sm:h-4 text-white" />
-                </div>
-                <h2
-                  className="text-lg sm:text-xl font-bold"
-                  style={{ color: colors.text }}
-                >
-                  Purchased Numbers ({filteredNumbers.length || 0})
-                </h2>
-              </div>
-              <div className="flex items-center space-x-2 text-xs sm:text-sm">
-                <div className="w-2 h-2 sm:w-3 sm:h-3 bg-green-400 rounded-full"></div>
-                <span
-                  className="font-semibold"
-                  style={{ color: colors.lightText }}
-                >
-                  Live Data
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Table Content */}
-          {loading ? (
-            <div className="flex items-center justify-center py-12 sm:py-20">
-              <div className="text-center">
-                <Phone
-                  className="w-8 h-8 sm:w-12 sm:h-12 animate-pulse mx-auto mb-4"
-                  style={{ color: colors.primary }}
-                />
-                <p
-                  className="text-lg sm:text-xl font-semibold mb-2"
-                  style={{ color: colors.text }}
-                >
-                  Loading purchased numbers...
-                </p>
-                <p
-                  className="text-sm sm:text-base"
-                  style={{ color: colors.lightText }}
-                >
-                  Please wait while we fetch your data
-                </p>
-              </div>
-            </div>
-          ) : filteredNumbers.length === 0 ? (
-            <div className="flex items-center justify-center py-12 sm:py-20">
-              <div className="text-center">
-                <div
-                  className="w-16 h-16 sm:w-20 sm:h-20 rounded-full flex items-center justify-center mx-auto mb-6"
-                  style={{ backgroundColor: colors.background }}
-                >
-                  <Phone
-                    className="w-8 h-8 sm:w-10 sm:h-10"
-                    style={{ color: colors.lightText }}
+              <div className="flex flex-col md:flex-row md:items-center gap-3">
+                <div className="relative flex-1">
+                  <Search
+                    className="absolute left-3 top-1/2 -translate-y-1/2"
+                    size={18}
+                    color={COLORS.dim}
+                  />
+                  <input
+                    value={q}
+                    onChange={(e) => {
+                      setQ(e.target.value);
+                      setPage(1);
+                    }}
+                    placeholder="Search by call id, number, name, status, reason..."
+                    className="w-full pl-10 pr-3 py-2 rounded-xl outline-none transition"
+                    style={{
+                      background: COLORS.card,
+                      color: COLORS.text,
+                      border: `1px solid ${COLORS.border}`,
+                    }}
                   />
                 </div>
-                <p
-                  className="text-lg sm:text-xl font-semibold mb-2"
-                  style={{ color: colors.text }}
-                >
-                  No purchased numbers found
-                </p>
-                <p
-                  className="text-sm sm:text-base mb-4"
-                  style={{ color: colors.lightText }}
-                >
-                  Your purchased numbers will appear here
-                </p>
+                <div className="flex items-center gap-2">
+                  <Filter size={16} color={COLORS.dim} />
+                  <select
+                    value={status}
+                    onChange={(e) => {
+                      setStatus(e.target.value);
+                      setPage(1);
+                    }}
+                    className="px-3 py-2 rounded-xl text-sm"
+                    style={{
+                      background: COLORS.card,
+                      color: COLORS.text,
+                      border: `1px solid ${COLORS.border}`,
+                    }}
+                  >
+                    <option value="any">Any status</option>
+                    <option value="completed">completed</option>
+                    <option value="failed">failed</option>
+                    <option value="in-progress">in-progress</option>
+                    <option value="queued">queued</option>
+                    <option value="connecting">connecting</option>
+                    <option value="Unknown">Unknown</option>
+                  </select>
+
+                  <select
+                    value={reason}
+                    onChange={(e) => {
+                      setReason(e.target.value);
+                      setPage(1);
+                    }}
+                    className="px-3 py-2 rounded-xl text-sm"
+                    style={{
+                      background: COLORS.card,
+                      color: COLORS.text,
+                      border: `1px solid ${COLORS.border}`,
+                    }}
+                  >
+                    <option value="any">Any reason</option>
+                    <option value="null">No reason (null)</option>
+                    <option value="completed">completed</option>
+                    <option value="hangup">hangup</option>
+                    <option value="no-answer">no-answer</option>
+                    <option value="busy">busy</option>
+                    <option value="failed">failed</option>
+                    <option value="Unknown">Unknown</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid sm:grid-cols-2 gap-3 mt-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs" style={{ color: COLORS.dim }}>
+                    From
+                  </span>
+                  <input
+                    type="date"
+                    value={dateFrom}
+                    onChange={(e) => {
+                      setDateFrom(e.target.value);
+                      setPage(1);
+                    }}
+                    className="px-3 py-2 rounded-xl text-sm flex-1"
+                    style={{
+                      background: COLORS.card,
+                      color: COLORS.text,
+                      border: `1px solid ${COLORS.border}`,
+                    }}
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs" style={{ color: COLORS.dim }}>
+                    To
+                  </span>
+                  <input
+                    type="date"
+                    value={dateTo}
+                    onChange={(e) => {
+                      setDateTo(e.target.value);
+                      setPage(1);
+                    }}
+                    className="px-3 py-2 rounded-xl text-sm flex-1"
+                    style={{
+                      background: COLORS.card,
+                      color: COLORS.text,
+                      border: `1px solid ${COLORS.border}`,
+                    }}
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 mt-3">
                 <button
-                  onClick={() => {
-                    try {
-                      navigate("/admin/callhistory");
-                    } catch (err) {
-                      toast.error("Navigation failed: " + err.message);
-                    }
+                  onClick={resetFilters}
+                  className="px-3 py-2 rounded-xl text-sm border hover:bg-white transition"
+                  style={{
+                    background: COLORS.card,
+                    color: COLORS.text,
+                    borderColor: COLORS.border,
                   }}
-                  className="px-4 py-2 sm:px-6 sm:py-2 rounded-lg font-semibold transition-colors hover:bg-indigo-600"
-                  style={{ backgroundColor: colors.primary, color: "white" }}
-                  aria-label="Buy Numbers"
                 >
-                  Buy Numbers
+                  Reset filters
                 </button>
               </div>
+            </div>
+          </div>
+
+          {/* Top actions */}
+          <div
+            className="rounded-2xl p-4 border space-y-3"
+            style={{
+              background: COLORS.panel,
+              borderColor: COLORS.border,
+              boxShadow: "0 1px 0 rgba(0,0,0,0.02)",
+            }}
+          >
+            <div className="text-sm font-semibold" style={{ color: COLORS.text }}>
+              Admin Actions
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={repairMissing}
+                disabled={busyAction}
+                className="px-3 py-2 rounded-xl text-sm font-semibold border hover:bg-amber-50 transition flex items-center gap-2 justify-center disabled:opacity-50"
+                style={{
+                  background: COLORS.card,
+                  color: COLORS.amber,
+                  borderColor: COLORS.border,
+                }}
+                title="Fill call_ended_reason, duration, etc. for incomplete rows"
+              >
+                {busyAction ? (
+                  <Loader2 className="animate-spin" size={16} />
+                ) : (
+                  <AlertTriangle size={16} />
+                )}
+                Repair Missing
+              </button>
+              <button
+                onClick={syncInbound}
+                disabled={busyAction}
+                className="px-3 py-2 rounded-xl text-sm font-semibold border hover:bg-cyan-50 transition flex items-center gap-2 justify-center disabled:opacity-50"
+                style={{
+                  background: COLORS.card,
+                  color: COLORS.cyan,
+                  borderColor: COLORS.border,
+                }}
+                title="Sync inbound calls from VAPI for this admin's assistants"
+              >
+                {busyAction ? (
+                  <Loader2 className="animate-spin" size={16} />
+                ) : (
+                  <RefreshCw size={16} />
+                )}
+                Sync Inbound
+              </button>
+            </div>
+
+            <div className="grid grid-cols-3 gap-2 pt-2">
+              <StatTile
+                icon={<CheckCircle2 size={16} color={COLORS.success} />}
+                label="Filtered"
+                value={prettyNum(totals.count)}
+              />
+              <StatTile
+                icon={<Clock size={16} color={COLORS.primary} />}
+                label="Duration"
+                value={fmtDuration(totals.duration)}
+              />
+              <StatTile
+                icon={<DollarSign size={16} color={COLORS.amber} />}
+                label="Cost"
+                value={`$${prettyNum(totals.cost)}`}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Results */}
+        <div
+          className="rounded-2xl border overflow-hidden"
+          style={{
+            background: COLORS.card,
+            borderColor: COLORS.border,
+            boxShadow:
+              "0 1px 0 rgba(0,0,0,0.02), 0 8px 24px -16px rgba(79,70,229,0.25)",
+          }}
+        >
+          {/* Desktop header row (hidden on small) */}
+          <div
+            className="hidden md:grid grid-cols-12 gap-3 px-4 py-3 text-xs border-b"
+            style={{
+              borderColor: COLORS.border,
+              background:
+                "linear-gradient(135deg, rgba(99,102,241,0.08), rgba(6,182,212,0.08))",
+            }}
+          >
+            <div className="col-span-3" style={{ color: COLORS.dim }}>
+              Customer
+            </div>
+            <div className="col-span-2" style={{ color: COLORS.dim }}>
+              Number
+            </div>
+            <div className="col-span-2" style={{ color: COLORS.dim }}>
+              Status
+            </div>
+            <div className="col-span-2" style={{ color: COLORS.dim }}>
+              Started
+            </div>
+            <div className="col-span-1" style={{ color: COLORS.dim }}>
+              Dur
+            </div>
+            <div className="col-span-2 text-right" style={{ color: COLORS.dim }}>
+              Actions
+            </div>
+          </div>
+
+          {/* Body */}
+          {loading ? (
+            <div className="py-16 flex items-center justify-center">
+              <div className="flex items-center gap-3">
+                <Loader2 className="animate-spin" color={COLORS.primary} />
+                <span style={{ color: COLORS.dim }}>Loading calls…</span>
+              </div>
+            </div>
+          ) : pageSlice.length === 0 ? (
+            <div className="py-16 text-center" style={{ color: COLORS.dim }}>
+              No results match your filters.
             </div>
           ) : (
             <>
-              {/* Desktop Table */}
-              <div className="hidden lg:block overflow-x-auto">
-                <table className="w-full">
-                  <thead
-                    className="border-b"
+              {/* Desktop rows */}
+              <div className="hidden md:block">
+                {pageSlice.map((c, idx) => (
+                  <div
+                    key={c.call_id}
+                    className="grid grid-cols-12 gap-3 px-4 py-3 border-b hover:bg-white transition"
                     style={{
-                      borderColor: colors.border,
-                      backgroundColor: colors.background,
+                      borderColor: COLORS.border,
+                      background: idx % 2 ? COLORS.bg : COLORS.row,
                     }}
                   >
-                    <tr>
-                      <th
-                        className="px-6 py-4 text-left text-sm font-bold uppercase tracking-wider"
-                        style={{ color: colors.text }}
-                      >
-                        Username
-                      </th>
-                      <th
-                        className="px-6 py-4 text-left text-sm font-bold uppercase tracking-wider"
-                        style={{ color: colors.text }}
-                      >
-                        Phone Number
-                      </th>
-                      <th
-                        className="px-6 py-4 text-left text-sm font-bold uppercase tracking-wider"
-                        style={{ color: colors.text }}
-                      >
-                        Region
-                      </th>
-                      <th
-                        className="px-6 py-4 text-left text-sm font-bold uppercase tracking-wider"
-                        style={{ color: colors.text }}
-                      >
-                        Created
-                      </th>
-                      <th
-                        className="px-6 py-4 text-left text-sm font-bold uppercase tracking-wider"
-                        style={{ color: colors.text }}
-                      >
-                        Action
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody
-                    className="divide-y"
-                    style={{ borderColor: colors.border }}
-                  >
-                    {currentItems.map((number, index) => (
-                      <tr
-                        key={
-                          number.id ||
-                          number.sid ||
-                          number.phone_number ||
-                          index
-                        }
-                        className="transition-colors"
-                        style={{ backgroundColor: colors.card }}
-                      >
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div
-                            className="text-sm font-medium"
-                            style={{ color: colors.text }}
-                          >
-                            {number.username || "N/A"}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="flex items-center">
-                            <div
-                              className="w-10 h-10 rounded-lg flex items-center justify-center mr-4"
-                              style={{ backgroundColor: colors.primary + "20" }}
-                            >
-                              <Phone
-                                className="w-5 h-5"
-                                style={{ color: colors.primary }}
-                              />
-                            </div>
-                            <div
-                              className="text-lg font-bold"
-                              style={{ color: colors.text }}
-                            >
-                              {formatPhoneNumber(number.phone_number)}
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="flex items-center">
-                            <MapPin
-                              className="w-4 h-4 mr-2"
-                              style={{ color: colors.lightText }}
-                            />
-                            <div>
-                              <span
-                                className="text-sm font-medium"
-                                style={{ color: colors.text }}
-                              >
-                                {getRegionName(number.region)}
-                              </span>
-                              <div
-                                className="text-xs"
-                                style={{ color: colors.lightText }}
-                              >
-                                ({number.region || "N/A"})
-                              </div>
-                            </div>
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <span
-                            className="text-xs font-mono bg-gray-100 px-2 py-1 rounded"
-                            style={{ color: colors.lightText }}
-                          >
-                            {formatDate(number.created_at)}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <button
-                            className="flex items-center px-3 py-2 rounded-lg font-semibold transition-colors hover:bg-red-100"
-                            style={{
-                              backgroundColor: colors.danger + "10",
-                              color: colors.danger,
-                            }}
-                            onClick={() =>
-                              setDeleteModal({ open: true, number })
-                            }
-                          >
-                            <Trash2 className="w-4 h-4 mr-1" />
-                            Delete
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-
-              {/* Mobile Cards */}
-              <div
-                className="lg:hidden divide-y"
-                style={{ borderColor: colors.border }}
-              >
-                {currentItems.map((number, index) => (
-                  <div
-                    key={
-                      number.id || number.sid || number.phone_number || index
-                    }
-                    className="p-4 sm:p-6"
-                    style={{ backgroundColor: colors.card }}
-                  >
-                    <div className="flex items-start space-x-3">
+                    <div className="col-span-3 flex items-center gap-3">
                       <div
-                        className="w-10 h-10 rounded-lg flex items-center justify-center"
-                        style={{ backgroundColor: colors.primary + "20" }}
+                        className="w-9 h-9 rounded-lg flex items-center justify-center"
+                        style={{
+                          background: COLORS.panel,
+                          border: `1px solid ${COLORS.border}`,
+                        }}
                       >
-                        <Phone
-                          className="w-5 h-5"
-                          style={{ color: colors.primary }}
-                        />
+                        <Phone size={16} color={COLORS.primary} />
                       </div>
-                      <div className="flex-1">
+                      <div className="min-w-0">
                         <div
-                          className="text-sm font-medium mb-2"
-                          style={{ color: colors.text }}
+                          className="truncate font-semibold"
+                          style={{ color: COLORS.text }}
                         >
-                          {number.username || "N/A"}
-                        </div>
-                        <div
-                          className="text-lg font-bold mb-2"
-                          style={{ color: colors.text }}
-                        >
-                          {formatPhoneNumber(number.phone_number)}
-                        </div>
-                        <div className="flex items-center mb-2">
-                          <MapPin
-                            className="w-4 h-4 mr-1"
-                            style={{ color: colors.lightText }}
-                          />
-                          <span
-                            className="text-sm"
-                            style={{ color: colors.lightText }}
-                          >
-                            {getRegionName(number.region)} (
-                            {number.region || "N/A"})
-                          </span>
+                          {c.customer_name || "—"}
                         </div>
                         <div
-                          className="text-xs font-mono bg-gray-100 px-2 py-1 rounded inline-block mb-2"
-                          style={{ color: colors.lightText }}
+                          className="text-xs truncate flex items-center gap-1"
+                          style={{ color: COLORS.dim }}
                         >
-                          {formatDate(number.created_at)}
-                        </div>
-                        <div>
+                          <span>ID:</span>
                           <button
-                            className="flex items-center px-3 py-2 rounded-lg font-semibold transition-colors hover:bg-red-100"
-                            style={{
-                              backgroundColor: colors.danger + "10",
-                              color: colors.danger,
-                            }}
-                            onClick={() =>
-                              setDeleteModal({ open: true, number })
-                            }
+                            onClick={() => copy(c.call_id, "Call ID copied")}
+                            className="underline-offset-2 hover:underline flex items-center gap-1"
+                            title="Copy call ID"
                           >
-                            <Trash2 className="w-4 h-4 mr-1" />
-                            Delete
+                            <Copy size={12} />
+                            {c.call_id}
                           </button>
                         </div>
                       </div>
                     </div>
+
+                    <div className="col-span-2 flex items-center">
+                      <div className="text-sm" style={{ color: COLORS.text }}>
+                        {maskPhone(c.customer_number)}
+                      </div>
+                    </div>
+
+                    <div className="col-span-2 flex items-center gap-2">
+                      <Badge
+                        color={
+                          c.status === "completed"
+                            ? COLORS.success
+                            : c.status === "failed"
+                            ? COLORS.danger
+                            : COLORS.primary
+                        }
+                        text={c.status || "Unknown"}
+                      />
+                      <span
+                        className="text-xs truncate"
+                        style={{ color: COLORS.dim }}
+                      >
+                        {c.call_ended_reason ?? "—"}
+                      </span>
+                    </div>
+
+                    <div className="col-span-2 flex items-center">
+                      <div className="text-sm" style={{ color: COLORS.text }}>
+                        {fmtDateTime(c.call_started_at)}
+                      </div>
+                    </div>
+
+                    <div className="col-span-1 flex items-center">
+                      <div className="text-sm" style={{ color: COLORS.text }}>
+                        {fmtDuration(c.call_duration)}
+                      </div>
+                    </div>
+
+                    <div className="col-span-2 flex items-center justify-end gap-2">
+                      <button
+                        onClick={() => openCallDetail(c.call_id)}
+                        className="px-3 py-1.5 rounded-lg text-xs font-semibold border hover:bg-white flex items-center gap-2"
+                        style={{
+                          background: COLORS.card,
+                          color: COLORS.text,
+                          borderColor: COLORS.border,
+                        }}
+                        title="Open details"
+                      >
+                        <Info size={14} color={COLORS.purple} />
+                        Detail
+                      </button>
+                      <button
+                        onClick={() => askDelete(c)}
+                        className="px-3 py-1.5 rounded-lg text-xs font-semibold border hover:bg-red-50 flex items-center gap-2"
+                        style={{
+                          background: COLORS.card,
+                          color: COLORS.danger,
+                          borderColor: COLORS.border,
+                        }}
+                        title="Delete"
+                      >
+                        <Trash2 size={14} />
+                        Delete
+                      </button>
+                    </div>
                   </div>
+                ))}
+              </div>
+
+              {/* Mobile CARDS */}
+              <div className="md:hidden p-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {pageSlice.map((c) => (
+                  <CallCard
+                    key={c.call_id}
+                    c={c}
+                    onOpen={() => openCallDetail(c.call_id)}
+                    onDelete={() => askDelete(c)}
+                  />
                 ))}
               </div>
             </>
           )}
-        </div>
 
-        {/* Pagination Controls */}
-        {!loading && (filteredNumbers.length || 0) > itemsPerPage && (
-          <div
-            className="bg-white rounded-xl border overflow-hidden"
-            style={{ borderColor: colors.border }}
-          >
+          {/* Footer / Pagination */}
+          {!loading && filtered.length > 0 && (
             <div
-              className="flex flex-col sm:flex-row items-center justify-between px-4 sm:px-6 py-4 border-t"
-              style={{
-                borderColor: colors.border,
-                backgroundColor: colors.background,
-              }}
+              className="flex items-center justify-between px-4 py-3 border-t"
+              style={{ background: COLORS.panel, borderColor: COLORS.border }}
             >
-              {/* Results Info */}
-              <div
-                className="text-sm mb-4 sm:mb-0"
-                style={{ color: colors.lightText }}
-              >
-                Showing{" "}
-                {(filteredNumbers.length || 0) === 0 ? 0 : indexOfFirstItem + 1}{" "}
-                to {indexOfLastItem} of {filteredNumbers.length || 0} results
+              <div className="text-xs" style={{ color: COLORS.dim }}>
+                Showing {(pageSafe - 1) * pageSize + 1}–
+                {Math.min(filtered.length, pageSafe * pageSize)} of {filtered.length}
               </div>
-
-              {/* Pagination Buttons */}
-              <div className="flex items-center space-x-2">
-                {/* Previous Button */}
+              <div className="flex items-center gap-2">
                 <button
-                  onClick={handlePrevPage}
-                  disabled={currentPage === 1}
-                  className="px-3 py-2 text-sm font-medium rounded-lg transition-colors hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  onClick={() => setPage((p) => Math.max(1, p - 1))}
+                  disabled={pageSafe === 1}
+                  className="px-3 py-1.5 rounded-lg text-xs font-semibold border disabled:opacity-50 hover:bg-white"
                   style={{
-                    color: colors.lightText,
-                    backgroundColor: colors.card,
-                    borderColor: colors.border,
+                    background: COLORS.card,
+                    color: COLORS.text,
+                    borderColor: COLORS.border,
                   }}
-                  aria-label="Previous page"
-                  aria-controls="purchased-numbers-table"
                 >
-                  Previous
+                  Prev
                 </button>
-
-                {/* Page Numbers */}
-                <div className="flex items-center space-x-1">
-                  {(() => {
-                    let pages = [];
-                    let startPage = 1;
-                    let endPage = totalPages;
-                    if (totalPages > 5) {
-                      if (currentPage <= 3) {
-                        startPage = 1;
-                        endPage = 5;
-                      } else if (currentPage >= totalPages - 2) {
-                        startPage = totalPages - 4;
-                        endPage = totalPages;
-                      } else {
-                        startPage = currentPage - 2;
-                        endPage = currentPage + 2;
-                      }
-                    }
-                    for (let i = startPage; i <= endPage; i++) {
-                      pages.push(
-                        <button
-                          key={i}
-                          onClick={() => handlePageClick(i)}
-                          className={`px-3 py-2 text-sm font-medium rounded-lg transition-colors ${
-                            currentPage === i
-                              ? "text-white"
-                              : "text-gray-700 hover:bg-gray-50"
-                          }`}
-                          style={{
-                            backgroundColor:
-                              currentPage === i ? colors.primary : colors.card,
-                            color:
-                              currentPage === i ? "white" : colors.lightText,
-                            borderColor: colors.border,
-                          }}
-                          aria-current={currentPage === i ? "page" : undefined}
-                          aria-controls="purchased-numbers-table"
-                        >
-                          {i}
-                        </button>
-                      );
-                    }
-                    return pages;
-                  })()}
+                <div className="text-xs" style={{ color: COLORS.dim }}>
+                  {pageSafe} / {totalPages}
                 </div>
-
-                {/* Next Button */}
                 <button
-                  onClick={handleNextPage}
-                  disabled={currentPage >= totalPages}
-                  className="px-3 py-2 text-sm font-medium rounded-lg transition-colors hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                  onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                  disabled={pageSafe >= totalPages}
+                  className="px-3 py-1.5 rounded-lg text-xs font-semibold border disabled:opacity-50 hover:bg-white"
                   style={{
-                    color: colors.lightText,
-                    backgroundColor: colors.card,
-                    borderColor: colors.border,
+                    background: COLORS.card,
+                    color: COLORS.text,
+                    borderColor: COLORS.border,
                   }}
-                  aria-label="Next page"
-                  aria-controls="purchased-numbers-table"
                 >
                   Next
                 </button>
               </div>
             </div>
+          )}
+        </div>
+      </div>
+
+      {/* Detail Drawer */}
+      {openDetail && (
+        <div className="fixed inset-0 z-40">
+          {/* Backdrop */}
+          <div
+            className="absolute inset-0 bg-black/30"
+            onClick={closeDetail}
+          />
+          {/* Panel */}
+          <div
+            className="absolute right-0 top-0 h-full w-full sm:w-[560px] shadow-2xl border-l overflow-y-auto"
+            style={{ background: COLORS.card, borderColor: COLORS.border }}
+          >
+            <div className="sticky top-0 px-4 py-3 flex items-center justify-between border-b bg-white">
+              <div className="flex items-center gap-2">
+                <FileAudio size={18} color={COLORS.primary} />
+                <div className="font-semibold" style={{ color: COLORS.text }}>
+                  Call Detail
+                </div>
+              </div>
+              <button
+                onClick={closeDetail}
+                className="p-2 rounded-lg border hover:bg-slate-50"
+                style={{ background: COLORS.card, borderColor: COLORS.border }}
+              >
+                <X size={16} color={COLORS.dim} />
+              </button>
+            </div>
+
+            {/* Body */}
+            <div className="p-4 space-y-4">
+              {detailLoading ? (
+                <div className="flex items-center gap-3">
+                  <Loader2 className="animate-spin" color={COLORS.primary} />
+                  <span style={{ color: COLORS.dim }}>Loading…</span>
+                </div>
+              ) : !detail ? (
+                <div style={{ color: COLORS.dim }}>No detail available.</div>
+              ) : (
+                <>
+                  {/* Summary Cards */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <MiniCard
+                      label="Status"
+                      value={statusProbe?.status || detail?.status || "—"}
+                    />
+                    <MiniCard
+                      label="Ended Reason"
+                      value={detail?.ended_reason || detail?.call_ended_reason || "—"}
+                    />
+                    <MiniCard
+                      label="Duration"
+                      value={fmtDuration(detail?.call_duration)}
+                    />
+                    <MiniCard
+                      label="Cost"
+                      value={`$${prettyNum(detail?.cost ?? 0)}`}
+                    />
+                  </div>
+
+                  {/* Timestamps */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <MiniCard
+                      label="Started"
+                      value={fmtDateTime(
+                        detail?.call_started_at ||
+                          detail?.started_at ||
+                          detail?.startedAt
+                      )}
+                    />
+                    <MiniCard
+                      label="Ended"
+                      value={fmtDateTime(
+                        detail?.call_ended_at ||
+                          detail?.ended_at ||
+                          detail?.endedAt
+                      )}
+                    />
+                  </div>
+
+                  {/* Recording */}
+                  {detail?.recording_url && detail.recording_url !== "N/A" && (
+                    <div
+                      className="p-3 rounded-xl border"
+                      style={{ background: COLORS.panel, borderColor: COLORS.border }}
+                    >
+                      <div className="flex items-center gap-2 mb-2">
+                        <PlayCircle size={18} color={COLORS.primary} />
+                        <div className="text-sm font-semibold" style={{ color: COLORS.text }}>
+                          Recording
+                        </div>
+                      </div>
+                      <audio ref={audioRef} controls className="w-full">
+                        <source src={detail.recording_url} />
+                      </audio>
+                      <div
+                        className="mt-2 text-xs flex items-center gap-2"
+                        style={{ color: COLORS.dim }}
+                      >
+                        <button
+                          onClick={() =>
+                            copy(detail.recording_url, "Recording URL copied")
+                          }
+                          className="underline-offset-2 hover:underline"
+                        >
+                          Copy URL
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Assistant & Variables */}
+                  <div
+                    className="p-3 rounded-xl border"
+                    style={{ background: COLORS.panel, borderColor: COLORS.border }}
+                  >
+                    <div
+                      className="text-sm font-semibold mb-2"
+                      style={{ color: COLORS.text }}
+                    >
+                      Assistant
+                    </div>
+                    <div className="text-xs" style={{ color: COLORS.dim }}>
+                      ID: {detail?.assistant?.id || "—"}
+                    </div>
+                    <div className="text-xs" style={{ color: COLORS.dim }}>
+                      Name: {detail?.assistant?.name || "—"}
+                    </div>
+
+                    <div
+                      className="mt-3 text-sm font-semibold"
+                      style={{ color: COLORS.text }}
+                    >
+                      Variables
+                    </div>
+                    <div
+                      className="mt-1 grid grid-cols-2 gap-2 text-xs"
+                      style={{ color: COLORS.dim }}
+                    >
+                      {detail?.variableValues ? (
+                        Object.entries(detail.variableValues).map(([k, v]) => (
+                          <div key={k} className="truncate">
+                            <span className="opacity-70">{k}:</span>{" "}
+                            {String(v ?? "—")}
+                          </div>
+                        ))
+                      ) : (
+                        <div>—</div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Transcript */}
+                  <div
+                    className="p-3 rounded-xl border"
+                    style={{ background: COLORS.panel, borderColor: COLORS.border }}
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <div
+                        className="text-sm font-semibold"
+                        style={{ color: COLORS.text }}
+                      >
+                        Transcript
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => probeStatus(detailId)}
+                          className="px-2 py-1.5 rounded-lg text-xs font-semibold border hover:bg-white"
+                          style={{
+                            background: COLORS.card,
+                            color: COLORS.text,
+                            borderColor: COLORS.border,
+                          }}
+                        >
+                          Check Status
+                        </button>
+                        <button
+                          onClick={() => refreshTranscript(detailId)}
+                          className="px-2 py-1.5 rounded-lg text-xs font-semibold border"
+                          style={{
+                            background:
+                              "linear-gradient(135deg, rgba(99,102,241,0.08), rgba(6,182,212,0.08))",
+                            color: COLORS.cyan,
+                            borderColor: COLORS.border,
+                          }}
+                        >
+                          Refresh
+                        </button>
+                      </div>
+                    </div>
+
+                    <div
+                      className="text-xs whitespace-pre-wrap leading-relaxed"
+                      style={{ color: COLORS.dim, maxHeight: 280, overflow: "auto" }}
+                    >
+                      {detail?.transcript && detail.transcript !== "No transcript available"
+                        ? detail.transcript
+                        : "No transcript available"}
+                    </div>
+                  </div>
+
+                  {/* Danger zone */}
+                  <div className="flex items-center justify-between">
+                    <div className="text-xs" style={{ color: COLORS.dim }}>
+                      Delete this call log (and attempt VAPI deletion)
+                    </div>
+                    <button
+                      onClick={() => askDelete({ call_id: detailId, ...detail })}
+                      className="px-3 py-2 rounded-lg text-xs font-semibold border hover:bg-red-50"
+                      style={{
+                        background: COLORS.card,
+                        color: COLORS.danger,
+                        borderColor: COLORS.border,
+                      }}
+                    >
+                      <Trash2 size={14} />
+                      &nbsp;Delete
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
-        )}
+        </div>
+      )}
+
+      {/* Delete Confirmation Modal */}
+      <DeleteModal
+        open={!!deleteTarget}
+        busy={deleteBusy}
+        call={deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={confirmDelete}
+      />
+    </div>
+  );
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+ * Mobile Card Component
+ * ────────────────────────────────────────────────────────────────────────── */
+function CallCard({ c, onOpen, onDelete }) {
+  return (
+    <div
+      className="rounded-2xl border p-4 flex flex-col gap-3"
+      style={{
+        background: COLORS.card,
+        borderColor: COLORS.border,
+        boxShadow:
+          "0 1px 0 rgba(0,0,0,0.02), 0 8px 24px -16px rgba(99,102,241,0.25)",
+      }}
+    >
+      <div className="flex items-start gap-3">
+        <div
+          className="w-10 h-10 rounded-xl flex items-center justify-center"
+          style={{
+            background:
+              "linear-gradient(135deg, rgba(99,102,241,0.12), rgba(6,182,212,0.12))",
+            border: `1px solid ${COLORS.border}`,
+          }}
+        >
+          <Phone size={18} color={COLORS.primary} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <div className="font-semibold truncate" style={{ color: COLORS.text }}>
+            {c.customer_name || "—"}
+          </div>
+          <div
+            className="text-xs flex items-center gap-1 mt-0.5"
+            style={{ color: COLORS.dim }}
+          >
+            <span className="opacity-70">ID:</span>
+            <span className="truncate">{c.call_id}</span>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 gap-2 text-sm">
+        <InfoRow label="Number" value={maskPhone(c.customer_number)} />
+        <InfoRow
+          label="Status"
+          value={
+            <span className="inline-flex items-center gap-2">
+              <Badge
+                color={
+                  c.status === "completed"
+                    ? COLORS.success
+                    : c.status === "failed"
+                    ? COLORS.danger
+                    : COLORS.primary
+                }
+                text={c.status || "Unknown"}
+              />
+            </span>
+          }
+        />
+        <InfoRow label="Reason" value={c.call_ended_reason ?? "—"} />
+        <InfoRow label="Started" value={fmtDateTime(c.call_started_at)} />
+        <InfoRow label="Duration" value={fmtDuration(c.call_duration)} />
+        <InfoRow label="Lead ID" value={c.lead_id ?? "—"} />
+      </div>
+
+      <div className="flex items-center justify-end gap-2 pt-1">
+        <button
+          onClick={onOpen}
+          className="px-3 py-2 rounded-lg text-xs font-semibold border hover:bg-white"
+          style={{
+            background: COLORS.card,
+            color: COLORS.text,
+            borderColor: COLORS.border,
+          }}
+          title="Open details"
+        >
+          <span className="inline-flex items-center gap-1.5">
+            <Info size={14} color={COLORS.purple} />
+            Detail
+          </span>
+        </button>
+        <button
+          onClick={onDelete}
+          className="px-3 py-2 rounded-lg text-xs font-semibold border hover:bg-red-50"
+          style={{
+            background: COLORS.card,
+            color: COLORS.danger,
+            borderColor: COLORS.border,
+          }}
+          title="Delete"
+        >
+          <span className="inline-flex items-center gap-1.5">
+            <Trash2 size={14} />
+            Delete
+          </span>
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function InfoRow({ label, value }) {
+  return (
+    <div
+      className="flex flex-col rounded-lg p-2"
+      style={{
+        background: COLORS.panel,
+        border: `1px dashed ${COLORS.border}`,
+      }}
+    >
+      <span
+        className="text-[10px] uppercase tracking-wide font-semibold"
+        style={{ color: COLORS.dim }}
+      >
+        {label}
+      </span>
+      <span className="text-sm truncate" style={{ color: COLORS.text }}>
+        {value}
+      </span>
+    </div>
+  );
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+ * Delete Modal
+ * ────────────────────────────────────────────────────────────────────────── */
+function DeleteModal({ open, onClose, onConfirm, call, busy }) {
+  if (!open) return null;
+  return (
+    <div className="fixed inset-0 z-50">
+      <div
+        className="absolute inset-0 bg-black/30"
+        onClick={() => !busy && onClose?.()}
+      />
+      <div className="absolute inset-0 flex items-end sm:items-center justify-center">
+        <div
+          className="w-full sm:w-[520px] rounded-t-2xl sm:rounded-2xl border shadow-2xl overflow-hidden animate-[fadeInUp_0.2s_ease]"
+          style={{ background: COLORS.card, borderColor: COLORS.border }}
+        >
+          {/* Header bar with gradient */}
+          <div
+            className="h-1 w-full"
+            style={{
+              background: `linear-gradient(90deg, ${COLORS.gradFrom}, ${COLORS.gradTo})`,
+            }}
+          />
+          <div className="px-5 py-4 flex items-start gap-3">
+            <div
+              className="w-10 h-10 rounded-xl flex items-center justify-center"
+              style={{
+                background: "rgba(220,38,38,0.08)",
+                border: `1px solid ${COLORS.border}`,
+              }}
+            >
+              <Trash2 size={18} color={COLORS.danger} />
+            </div>
+            <div className="flex-1">
+              <div
+                className="text-lg font-bold"
+                style={{ color: COLORS.text }}
+              >
+                Delete call log?
+              </div>
+              <div className="text-sm mt-1" style={{ color: COLORS.dim }}>
+                This will remove the call from your database and attempt to
+                delete it from VAPI as well. This action cannot be undone.
+              </div>
+              <div className="mt-3 text-xs rounded-lg p-3"
+                   style={{ background: COLORS.panel, border: `1px dashed ${COLORS.border}`, color: COLORS.dim }}>
+                <div><span className="font-semibold text-slate-700">Call ID:</span> {call?.call_id ?? "—"}</div>
+                <div><span className="font-semibold text-slate-700">Number:</span> {maskPhone(call?.customer_number)}</div>
+                <div><span className="font-semibold text-slate-700">Customer:</span> {call?.customer_name || "—"}</div>
+              </div>
+            </div>
+            <button
+              onClick={() => !busy && onClose?.()}
+              className="p-2 rounded-lg border hover:bg-slate-50"
+              style={{ borderColor: COLORS.border }}
+              aria-label="Close delete modal"
+            >
+              <X size={16} color={COLORS.dim} />
+            </button>
+          </div>
+
+          <div className="px-5 pb-5 flex items-center justify-end gap-2">
+            <button
+              onClick={() => !busy && onClose?.()}
+              disabled={busy}
+              className="px-4 py-2 rounded-lg text-sm font-semibold border hover:bg-white disabled:opacity-50"
+              style={{
+                background: COLORS.card,
+                color: COLORS.text,
+                borderColor: COLORS.border,
+              }}
+            >
+              Cancel
+            </button>
+            <button
+              onClick={onConfirm}
+              disabled={busy}
+              className="px-4 py-2 rounded-lg text-sm font-semibold text-white disabled:opacity-50"
+              style={{
+                background: `linear-gradient(135deg, ${COLORS.gradFrom}, ${COLORS.gradTo})`,
+                boxShadow:
+                  "0 10px 20px -10px rgba(79,70,229,0.5), 0 8px 24px -12px rgba(6,182,212,0.45)",
+              }}
+            >
+              {busy ? (
+                <span className="inline-flex items-center gap-2">
+                  <Loader2 size={16} className="animate-spin" />
+                  Deleting…
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-2">
+                  <Trash2 size={16} />
+                  Delete
+                </span>
+              )}
+            </button>
+          </div>
+        </div>
+      </div>
+      {/* simple keyframes fallback */}
+      <style>{`
+        @keyframes fadeInUp {
+          from { opacity: 0; transform: translateY(12px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+      `}</style>
+    </div>
+  );
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+ * Small UI pieces
+ * ────────────────────────────────────────────────────────────────────────── */
+function Badge({ color, text }) {
+  return (
+    <span
+      className="px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wide"
+      style={{ background: `${color}1A`, color }}
+    >
+      {text}
+    </span>
+  );
+}
+
+function StatTile({ icon, label, value }) {
+  return (
+    <div
+      className="p-3 rounded-xl border"
+      style={{ background: COLORS.card, borderColor: COLORS.border }}
+    >
+      <div className="flex items-center gap-2">
+        {icon}
+        <div className="text-xs" style={{ color: COLORS.dim }}>
+          {label}
+        </div>
+      </div>
+      <div className="mt-1 text-lg font-bold" style={{ color: COLORS.text }}>
+        {value}
+      </div>
+    </div>
+  );
+}
+
+function MiniCard({ label, value }) {
+  return (
+    <div
+      className="p-3 rounded-xl border"
+      style={{ background: COLORS.card, borderColor: COLORS.border }}
+    >
+      <div className="text-xs" style={{ color: COLORS.dim }}>{label}</div>
+      <div className="text-sm font-semibold truncate" style={{ color: COLORS.text }}>
+        {value}
       </div>
     </div>
   );

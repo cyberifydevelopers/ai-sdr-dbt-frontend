@@ -231,7 +231,7 @@ function App() {
               }
             />
             <Route
-              path="lead"
+              path="lead/:id"
               element={
                 <Isadmin>
                   <AdminLeadsid />
@@ -239,7 +239,7 @@ function App() {
               }
             />
             <Route
-              path="lead/:id"
+              path="lead"
               element={
                 <Isadmin>
                   <AdminLead />

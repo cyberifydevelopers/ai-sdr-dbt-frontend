@@ -140,9 +140,9 @@ export default function Sidebar() {
   const menuItems = [
     { id: "dashboard", label: "Dashboard", icon: Home, href: "/admin/dashboard", color: "text-blue-600" },
     { id: "users", label: "Users", icon: Users, href: "/admin/Users", color: "text-blue-600" },
-    // { id: "phoneNumbers", label: "Phone Numbers", icon: Phone, href: "/admin/PhoneCalls", color: "text-orange-600" },
+    { id: "phoneNumbers", label: "Call Details", icon: Phone, href: "/admin/PhoneCalls", color: "text-orange-600" },
     // { id: "assistants", label: "Assistants", icon: FaRobot, href: "/admin/assistants", color: "text-green-600" },
-    // { id: "leads", label: "Leads", icon: Users, href: "/admin/lead", color: "text-purple-600" },
+    { id: "leads", label: "Leads", icon: Users, href: "/admin/lead", color: "text-purple-600" },
     // { id: "settings", label: "Settings", icon: Settings, href: "/admin/settings", color: "text-gray-600" },
   ];
 
