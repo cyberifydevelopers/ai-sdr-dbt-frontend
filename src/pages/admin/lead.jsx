@@ -1,9 +1,6 @@
 
 
 
-
-
-
 // "use client";
 
 // import React, { useEffect, useMemo, useRef, useState } from "react";
@@ -29,7 +26,7 @@
 //  * ────────────────────────────────────────────────────────────────────────── */
 // const API_URL = import.meta.env?.VITE_API_URL || "http://localhost:8000";
 // const ENDPOINTS = {
-//   LIST: `${API_URL}/api/admin/leadss`, // ← fixed
+//   LIST: `${API_URL}/api/admin/leadss`,
 //   UPDATE: (id) => `${API_URL}/api/admin/leads/${id}`,
 // };
 
@@ -68,7 +65,7 @@
 //   }
 // }
 
-// /* Simple motion variants */
+// /* Motion variants */
 // const fadeUp = {
 //   hidden: { opacity: 0, y: 8 },
 //   show: { opacity: 1, y: 0, transition: { duration: 0.24, ease: "easeOut" } },
@@ -299,20 +296,22 @@
 //   /* Render */
 //   return (
 //     <div className="min-h-screen w-full text-slate-900 bg-gradient-to-b from-slate-50 via-white to-slate-50 relative">
-//       {/* Decorative aurora */}
+//       {/* Decorative aurora + neon glows */}
 //       <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
-//         <div className="absolute -top-24 -left-24 h-72 w-72 rounded-full bg-blue-400/10 blur-3xl" />
-//         <div className="absolute top-1/3 -right-20 h-72 w-72 rounded-full bg-cyan-400/10 blur-3xl" />
+//         <div className="absolute -top-24 -left-24 h-72 w-72 rounded-full bg-blue-400/15 blur-3xl" />
+//         <div className="absolute top-1/3 -right-20 h-72 w-72 rounded-full bg-cyan-400/20 blur-3xl animate-pulse" />
 //         <div className="absolute bottom-0 left-1/3 h-72 w-72 rounded-full bg-indigo-400/10 blur-3xl" />
 //       </div>
 
-//       {/* Header */}
-//       <header className="sticky top-0 z-30 border-b border-slate-200/70 backdrop-blur bg-white/60">
+//       {/* Header (scrolls with page, now BELOW your global header) */}
+//       <header className="relative z-0 border-b border-slate-200/70 bg-white/60 backdrop-blur after:absolute after:inset-x-0 after:-bottom-[1px] after:h-[2px] after:bg-gradient-to-r after:from-transparent after:via-cyan-400/70 after:to-transparent">
 //         <div className="mx-auto max-w-[1400px] px-4 sm:px-6 lg:px-8 py-5">
 //           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
 //             <div>
 //               <h1 className="text-2xl font-black tracking-tight">
-//                 Leads
+//                 <span className="bg-gradient-to-r from-blue-600 via-cyan-500 to-blue-600 bg-clip-text text-transparent drop-shadow-[0_0_12px_rgba(34,211,238,0.35)]">
+//                   Leads
+//                 </span>
 //               </h1>
 //               <p className="text-sm text-slate-600">
 //                 Browse and edit your leads with style ✨
@@ -340,7 +339,7 @@
 //                   setPage(1);
 //                 }}
 //                 placeholder="Search name, email, mobile, Salesforce ID, state…"
-//                 className="w-full rounded-2xl border border-slate-200/70 bg-white/80 pl-10 pr-3 py-2.5 text-slate-900 placeholder-slate-400 outline-none ring-1 ring-slate-100 transition focus:ring-2 focus:ring-blue-400/30 focus:border-blue-300"
+//                 className="w-full rounded-2xl border border-slate-200/70 bg-white/80 pl-10 pr-3 py-2.5 text-slate-900 placeholder-slate-400 outline-none ring-1 ring-white/60 transition focus:ring-2 focus:ring-cyan-400/40 focus:border-cyan-300 shadow-[0_0_0_0_rgba(0,0,0,0)] focus:shadow-[0_0_24px_-8px_rgba(34,211,238,0.55)]"
 //               />
 //             </div>
 
@@ -355,7 +354,7 @@
 //                   setPageSize(Number(e.target.value));
 //                   setPage(1);
 //                 }}
-//                 className="rounded-2xl border border-slate-200/70 bg-white/80 px-3 py-2 text-sm outline-none ring-1 ring-slate-100 focus:ring-2 focus:ring-blue-400/30"
+//                 className="rounded-2xl border border-slate-200/70 bg-white/80 px-3 py-2 text-sm outline-none ring-1 ring-white/60 focus:ring-2 focus:ring-cyan-400/40 shadow-[0_0_24px_-12px_rgba(34,211,238,0.45)]"
 //               >
 //                 {[12, 24, 48, 96].map((n) => (
 //                   <option key={n} value={n}>
@@ -375,7 +374,7 @@
 //           initial="hidden"
 //           animate="show"
 //           variants={stagger}
-//           className="hidden lg:block overflow-x-auto rounded-3xl border border-slate-200/70 bg-white/70 backdrop-blur ring-1 ring-white/50 shadow-[0_10px_40px_-20px_rgba(2,6,23,0.2)]"
+//           className="hidden lg:block overflow-x-auto rounded-3xl border border-slate-200/70 bg-white/70 backdrop-blur ring-1 ring-white/50 shadow-[0_10px_40px_-18px_rgba(6,182,212,0.45)]"
 //         >
 //           <table className="min-w-full text-left">
 //             <thead className="bg-slate-50/80 text-slate-600 text-sm">
@@ -642,7 +641,7 @@
 //       className={cx(
 //         "inline-flex items-center gap-2 rounded-2xl px-3.5 py-2 font-semibold text-white transition",
 //         "bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 active:from-blue-700 active:to-cyan-700",
-//         "shadow-[0_8px_24px_-12px_rgba(37,99,235,0.5)]",
+//         "shadow-[0_8px_24px_-12px_rgba(37,99,235,0.55)]",
 //         "disabled:opacity-60 disabled:cursor-not-allowed"
 //       )}
 //     >
@@ -730,7 +729,7 @@
 //         name={name}
 //         value={value}
 //         onChange={onChange}
-//         className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-slate-900 placeholder-slate-400 outline-none ring-1 ring-white/70 focus:ring-2 focus:ring-blue-400/30"
+//         className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-slate-900 placeholder-slate-400 outline-none ring-1 ring-white/70 focus:ring-2 focus:ring-cyan-400/40 focus:border-cyan-300 shadow-[0_0_24px_-12px_rgba(34,211,238,0.45)]"
 //       />
 //     </label>
 //   );
@@ -747,15 +746,6 @@
 //     </div>
 //   );
 // }
-
-
-
-
-
-
-
-
-
 
 
 
@@ -785,6 +775,9 @@ import {
   Mail,
   Hash,
   CalendarDays,
+  Users,
+  CheckCircle2,
+  XCircle,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -801,6 +794,13 @@ const ENDPOINTS = {
 function cx(...arr) {
   return arr.filter(Boolean).join(" ");
 }
+
+/* “Unknown” fallback everywhere */
+const unknown = (v) => {
+  if (v === undefined || v === null) return "Unknown";
+  const s = String(v).trim();
+  return s === "" || s.toLowerCase() === "null" || s.toLowerCase() === "undefined" ? "Unknown" : s;
+};
 
 /* Debounce */
 function useDebounce(value, delay = 250) {
@@ -825,10 +825,10 @@ function toInputDate(value) {
 function fmtDT(d) {
   try {
     const dt = new Date(d);
-    if (isNaN(dt.getTime())) return String(d || "");
+    if (isNaN(dt.getTime())) return "Unknown";
     return dt.toLocaleString();
   } catch {
-    return String(d || "");
+    return "Unknown";
   }
 }
 
@@ -858,14 +858,33 @@ function Chip({ children, tone = "slate" }) {
     blue: "bg-blue-100 text-blue-700 ring-blue-200",
   };
   return (
-    <span
-      className={cx(
-        "inline-flex items-center rounded-full px-2.5 py-1 text-xs ring-1",
-        tones[tone] || tones.slate
-      )}
-    >
+    <span className={cx("inline-flex items-center rounded-full px-2.5 py-1 text-xs ring-1", tones[tone] || tones.slate)}>
       {children}
     </span>
+  );
+}
+
+/* Stat card (to mirror previous page) */
+function StatCard({ label, value, Icon, tone = "blue" }) {
+  const ring = tone === "blue" ? "ring-blue-200/60" : tone === "cyan" ? "ring-cyan-200/60" : "ring-slate-200/60";
+  const bg =
+    tone === "blue"
+      ? "from-blue-600 to-cyan-500"
+      : tone === "cyan"
+      ? "from-cyan-500 to-blue-600"
+      : "from-slate-500 to-slate-700";
+  return (
+    <motion.div initial={{ y: 8, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="relative rounded-3xl border border-slate-200 bg-white p-5 shadow-xl">
+      <div className="relative z-10 flex items-center gap-3">
+        <div className={`flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br ${bg} text-white shadow-inner ring-1 ${ring}`}>
+          <Icon className="h-7 w-7" />
+        </div>
+        <div>
+          <div className="text-xs uppercase tracking-wider text-slate-500">{label}</div>
+          <div className="text-2xl font-black text-slate-900">{value}</div>
+        </div>
+      </div>
+    </motion.div>
   );
 }
 
@@ -942,13 +961,7 @@ export default function AdminLeads() {
     let list = leads.filter((l) => {
       if (!q) return true;
       const name = `${l.first_name || ""} ${l.last_name || ""}`.toLowerCase();
-      const fields = [
-        name,
-        (l.email || "").toLowerCase(),
-        (l.mobile || "").toLowerCase(),
-        (l.salesforce_id || "").toLowerCase(),
-        (l.state || "").toLowerCase(),
-      ];
+      const fields = [name, (l.email || "").toLowerCase(), (l.mobile || "").toLowerCase(), (l.salesforce_id || "").toLowerCase(), (l.state || "").toLowerCase()];
       return fields.some((f) => f.includes(q));
     });
 
@@ -959,13 +972,21 @@ export default function AdminLeads() {
       let va, vb;
       switch (sortBy) {
         case "name":
-          va = nameA; vb = nameB; break;
+          va = nameA;
+          vb = nameB;
+          break;
         case "email":
-          va = (a.email || "").toLowerCase(); vb = (b.email || "").toLowerCase(); break;
+          va = (a.email || "").toLowerCase();
+          vb = (b.email || "").toLowerCase();
+          break;
         case "mobile":
-          va = (a.mobile || "").toLowerCase(); vb = (b.mobile || "").toLowerCase(); break;
+          va = (a.mobile || "").toLowerCase();
+          vb = (b.mobile || "").toLowerCase();
+          break;
         case "state":
-          va = (a.state || "").toLowerCase(); vb = (b.state || "").toLowerCase(); break;
+          va = (a.state || "").toLowerCase();
+          vb = (b.state || "").toLowerCase();
+          break;
         case "add_date":
         default:
           va = new Date(a.add_date || 0).getTime();
@@ -987,6 +1008,13 @@ export default function AdminLeads() {
   const start = (page - 1) * pageSize;
   const end = start + pageSize;
   const pageItems = filtered.slice(start, end);
+
+  // Stats on filtered set
+  const stats = useMemo(() => {
+    const callable = filtered.filter((l) => !l.dnc).length;
+    const dnc = filtered.filter((l) => !!l.dnc).length;
+    return { total: filtered.length, callable, dnc };
+  }, [filtered]);
 
   /* Edit */
   function openEditor(lead) {
@@ -1070,31 +1098,27 @@ export default function AdminLeads() {
         <div className="absolute bottom-0 left-1/3 h-72 w-72 rounded-full bg-indigo-400/10 blur-3xl" />
       </div>
 
-      {/* Header (scrolls with page, now BELOW your global header) */}
+      {/* Header */}
       <header className="relative z-0 border-b border-slate-200/70 bg-white/60 backdrop-blur after:absolute after:inset-x-0 after:-bottom-[1px] after:h-[2px] after:bg-gradient-to-r after:from-transparent after:via-cyan-400/70 after:to-transparent">
         <div className="mx-auto max-w-[1400px] px-4 sm:px-6 lg:px-8 py-5">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h1 className="text-2xl font-black tracking-tight">
-                <span className="bg-gradient-to-r from-blue-600 via-cyan-500 to-blue-600 bg-clip-text text-transparent drop-shadow-[0_0_12px_rgba(34,211,238,0.35)]">
+                <span className="bg-gradient-to-r from-blue-600 via-cyan-500 to-blue-600 bg-clip-text text-transparent">
                   Leads
                 </span>
               </h1>
-              <p className="text-sm text-slate-600">
-                Browse and edit your leads with style ✨
-              </p>
+              <p className="text-sm text-slate-600">View, search, and edit leads.</p>
             </div>
 
             <div className="flex items-center gap-2">
-              <ButtonGhost
-                onClick={refreshAll}
-                icon={<RefreshCw className={cx("h-4 w-4", refreshing && "animate-spin")} />}
-              >
+              <ButtonGhost onClick={refreshAll} icon={<RefreshCw className={cx("h-4 w-4", refreshing && "animate-spin")} />}>
                 Refresh
               </ButtonGhost>
             </div>
           </div>
 
+          {/* Filters (simple & aligned like previous page) */}
           <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
             {/* Search */}
             <div className="relative sm:col-span-2">
@@ -1106,7 +1130,8 @@ export default function AdminLeads() {
                   setPage(1);
                 }}
                 placeholder="Search name, email, mobile, Salesforce ID, state…"
-                className="w-full rounded-2xl border border-slate-200/70 bg-white/80 pl-10 pr-3 py-2.5 text-slate-900 placeholder-slate-400 outline-none ring-1 ring-white/60 transition focus:ring-2 focus:ring-cyan-400/40 focus:border-cyan-300 shadow-[0_0_0_0_rgba(0,0,0,0)] focus:shadow-[0_0_24px_-8px_rgba(34,211,238,0.55)]"
+                className="w-full rounded-2xl border border-slate-200/70 bg-white/80 pl-10 pr-3 py-2.5 text-slate-900 placeholder-slate-400 outline-none ring-1 ring-white/60 transition focus:ring-2 focus:ring-cyan-400/40 focus:border-cyan-300"
+                aria-label="Search leads"
               />
             </div>
 
@@ -1121,7 +1146,8 @@ export default function AdminLeads() {
                   setPageSize(Number(e.target.value));
                   setPage(1);
                 }}
-                className="rounded-2xl border border-slate-200/70 bg-white/80 px-3 py-2 text-sm outline-none ring-1 ring-white/60 focus:ring-2 focus:ring-cyan-400/40 shadow-[0_0_24px_-12px_rgba(34,211,238,0.45)]"
+                className="rounded-2xl border border-slate-200/70 bg-white/80 px-3 py-2 text-sm outline-none ring-1 ring-white/60 focus:ring-2 focus:ring-cyan-400/40"
+                aria-label="Rows per page"
               >
                 {[12, 24, 48, 96].map((n) => (
                   <option key={n} value={n}>
@@ -1134,14 +1160,23 @@ export default function AdminLeads() {
         </div>
       </header>
 
+      {/* Stats (filtered) */}
+      <div className="mx-auto max-w-[1400px] px-4 sm:px-6 lg:px-8 py-6">
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          <StatCard label="Total Leads" value={stats.total} Icon={Users} tone="blue" />
+          <StatCard label="Callable" value={stats.callable} Icon={CheckCircle2} tone="cyan" />
+          <StatCard label="DNC" value={stats.dnc} Icon={XCircle} tone="blue" />
+        </div>
+      </div>
+
       {/* Content */}
-      <main className="mx-auto max-w-[1400px] px-4 sm:px-6 lg:px-8 py-6">
+      <main className="mx-auto max-w-[1400px] px-4 sm:px-6 lg:px-8 pb-6">
         {/* Table (lg+) */}
         <motion.div
           initial="hidden"
           animate="show"
           variants={stagger}
-          className="hidden lg:block overflow-x-auto rounded-3xl border border-slate-200/70 bg-white/70 backdrop-blur ring-1 ring-white/50 shadow-[0_10px_40px_-18px_rgba(6,182,212,0.45)]"
+          className="hidden lg:block overflow-x-auto rounded-3xl border border-slate-200/70 bg-white/70 backdrop-blur ring-1 ring-white/50"
         >
           <table className="min-w-full text-left">
             <thead className="bg-slate-50/80 text-slate-600 text-sm">
@@ -1177,50 +1212,40 @@ export default function AdminLeads() {
                 </tr>
               ) : (
                 pageItems.map((l) => {
-                  const name = `${l.first_name || ""} ${l.last_name || ""}`.trim() || "—";
+                  const nameFull = `${unknown(l.first_name)} ${l.last_name ? unknown(l.last_name) : ""}`.trim();
                   return (
-                    <motion.tr
-                      key={l.id}
-                      variants={fadeUp}
-                      className="hover:bg-slate-50/70 transition-colors"
-                    >
+                    <motion.tr key={l.id} variants={fadeUp} className="hover:bg-slate-50/70 transition-colors">
                       <td className="px-5 py-3 text-sm text-slate-600 whitespace-nowrap">
                         {l.add_date ? (
                           <span className="inline-flex items-center gap-1.5">
                             <CalendarDays className="h-4 w-4 text-slate-400" />
                             {fmtDT(l.add_date)}
                           </span>
-                        ) : "—"}
+                        ) : (
+                          "Unknown"
+                        )}
                       </td>
-                      <td className="px-5 py-3 font-medium text-slate-900">{name}</td>
+                      <td className="px-5 py-3 font-medium text-slate-900">{nameFull}</td>
                       <td className="px-5 py-3 text-slate-800 break-all">
                         <span className="inline-flex items-center gap-1.5">
                           <Mail className="h-4 w-4 text-slate-400" />
-                          {l.email || "—"}
+                          {unknown(l.email)}
                         </span>
                       </td>
                       <td className="px-5 py-3 text-slate-800 break-all">
                         <span className="inline-flex items-center gap-1.5">
                           <Smartphone className="h-4 w-4 text-slate-400" />
-                          {l.mobile || "—"}
+                          {unknown(l.mobile)}
                         </span>
                       </td>
-                      <td className="px-5 py-3">
-                        {l.state ? <Chip tone="blue">{l.state}</Chip> : "—"}
-                      </td>
+                      <td className="px-5 py-3">{l.state ? <Chip tone="blue">{unknown(l.state)}</Chip> : "Unknown"}</td>
                       <td className="px-5 py-3 text-slate-800">
                         <span className="inline-flex items-center gap-1.5">
                           <Hash className="h-4 w-4 text-slate-400" />
-                          {l.salesforce_id || "—"}
+                          {unknown(l.salesforce_id)}
                         </span>
                       </td>
-                      <td className="px-5 py-3">
-                        {l.dnc ? (
-                          <Chip tone="red">DNC</Chip>
-                        ) : (
-                          <Chip tone="green">Callable</Chip>
-                        )}
-                      </td>
+                      <td className="px-5 py-3">{l.dnc ? <Chip tone="red">DNC</Chip> : <Chip tone="green">Callable</Chip>}</td>
                       <td className="px-5 py-3">
                         <div className="flex items-center justify-end">
                           <ButtonPrimary onClick={() => openEditor(l)} icon={<Edit3 className="h-4 w-4" />}>
@@ -1247,40 +1272,27 @@ export default function AdminLeads() {
               No leads found. Try searching something else.
             </div>
           ) : (
-            <motion.div
-              initial="hidden"
-              animate="show"
-              variants={stagger}
-              className="grid grid-cols-1 sm:grid-cols-2 gap-4"
-            >
+            <motion.div initial="hidden" animate="show" variants={stagger} className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {pageItems.map((l) => {
-                const name = `${l.first_name || ""} ${l.last_name || ""}`.trim() || "—";
+                const nameFull = `${unknown(l.first_name)} ${l.last_name ? unknown(l.last_name) : ""}`.trim();
                 return (
-                  <motion.article
-                    key={l.id}
-                    variants={glassPop}
-                    className="rounded-3xl border border-slate-200/70 bg-white/70 backdrop-blur ring-1 ring-white/60 shadow hover:shadow-lg transition-shadow p-4"
-                  >
+                  <motion.article key={l.id} variants={glassPop} className="rounded-3xl border border-slate-200/70 bg-white/70 backdrop-blur ring-1 ring-white/60 shadow hover:shadow-lg transition-shadow p-4">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <h3 className="text-base font-semibold text-slate-900 break-words">
-                          {name}
-                        </h3>
-                        <p className="text-xs text-slate-600 mt-0.5">
-                          {l.add_date ? fmtDT(l.add_date) : "—"}
-                        </p>
+                        <h3 className="text-base font-semibold text-slate-900 break-words">{nameFull}</h3>
+                        <p className="text-xs text-slate-600 mt-0.5">{l.add_date ? fmtDT(l.add_date) : "Unknown"}</p>
                       </div>
                       <div className="flex items-center gap-2">
-                        {l.state ? <Chip tone="blue">{l.state}</Chip> : null}
+                        {l.state ? <Chip tone="blue">{unknown(l.state)}</Chip> : null}
                         {l.dnc ? <Chip tone="red">DNC</Chip> : <Chip tone="green">Callable</Chip>}
                       </div>
                     </div>
 
                     <div className="mt-3 grid grid-cols-1 gap-2">
-                      <InfoRow icon={<Mail className="h-4 w-4" />} label="Email" value={l.email || "—"} copySafe />
-                      <InfoRow icon={<Smartphone className="h-4 w-4" />} label="Mobile" value={l.mobile || "—"} copySafe />
-                      <InfoRow icon={<Hash className="h-4 w-4" />} label="SFDC" value={l.salesforce_id || "—"} />
-                      {l.timezone ? <InfoRow icon={<Shield className="h-4 w-4" />} label="Timezone" value={l.timezone} /> : null}
+                      <InfoRow icon={<Mail className="h-4 w-4" />} label="Email" value={unknown(l.email)} copySafe />
+                      <InfoRow icon={<Smartphone className="h-4 w-4" />} label="Mobile" value={unknown(l.mobile)} copySafe />
+                      <InfoRow icon={<Hash className="h-4 w-4" />} label="SFDC" value={unknown(l.salesforce_id)} />
+                      {l.timezone ? <InfoRow icon={<Shield className="h-4 w-4" />} label="Timezone" value={unknown(l.timezone)} /> : null}
                     </div>
 
                     <div className="mt-4 flex justify-end">
@@ -1299,8 +1311,7 @@ export default function AdminLeads() {
         {!loading && totalLeads > 0 && (
           <div className="mt-6 flex flex-col items-center justify-between gap-3 sm:flex-row text-slate-700">
             <div className="text-sm">
-              Showing{" "}
-              <span className="font-semibold text-slate-900">{Math.min(end, totalLeads)}</span> of {totalLeads}
+              Showing <span className="font-semibold text-slate-900">{Math.min(end, totalLeads)}</span> of {totalLeads}
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <PagerButton disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>
@@ -1355,11 +1366,7 @@ export default function AdminLeads() {
                 </div>
                 <div className="flex items-center gap-2">
                   <ButtonGhost onClick={() => setShowEditor(false)}>Cancel</ButtonGhost>
-                  <ButtonPrimary
-                    onClick={saveLead}
-                    disabled={saving}
-                    icon={saving ? <Loader2 className="h-4 w-4 animate-spin" /> : undefined}
-                  >
+                  <ButtonPrimary onClick={saveLead} disabled={saving} icon={saving ? <Loader2 className="h-4 w-4 animate-spin" /> : undefined}>
                     {saving ? "Saving…" : "Save"}
                   </ButtonPrimary>
                 </div>
@@ -1373,7 +1380,7 @@ export default function AdminLeads() {
                   <Field label="Email" name="email" value={form.email} onChange={onFormChange} type="email" />
                   <Field label="Mobile" name="mobile" value={form.mobile} onChange={onFormChange} />
                   <Field label="Salesforce ID" name="salesforce_id" value={form.salesforce_id} onChange={onFormChange} />
-                  <Field label="Add date (YYYY-MM-DD)" name="add_date" value={form.add_date} onChange={onFormChange} />
+                  <Field label="Add date" name="add_date" value={form.add_date} onChange={onFormChange} type="date" />
                   <Field label="State" name="state" value={form.state} onChange={onFormChange} />
                 </div>
 
@@ -1381,10 +1388,18 @@ export default function AdminLeads() {
                 <div className="mt-6 rounded-2xl border border-slate-200 bg-slate-50/60 p-4 text-sm text-slate-700">
                   <div className="font-semibold mb-2">Quick Summary</div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    <div><span className="text-slate-500">Name:</span> {form.first_name || "—"} {form.last_name || ""}</div>
-                    <div><span className="text-slate-500">Email:</span> {form.email || "—"}</div>
-                    <div><span className="text-slate-500">Mobile:</span> {form.mobile || "—"}</div>
-                    <div><span className="text-slate-500">State:</span> {form.state || "—"}</div>
+                    <div>
+                      <span className="text-slate-500">Name:</span> {form.first_name || "Unknown"} {form.last_name || ""}
+                    </div>
+                    <div>
+                      <span className="text-slate-500">Email:</span> {form.email || "Unknown"}
+                    </div>
+                    <div>
+                      <span className="text-slate-500">Mobile:</span> {form.mobile || "Unknown"}
+                    </div>
+                    <div>
+                      <span className="text-slate-500">State:</span> {form.state || "Unknown"}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1440,9 +1455,7 @@ function PagerButton({ children, disabled, onClick }) {
       onClick={onClick}
       className={cx(
         "inline-flex items-center gap-2 rounded-2xl border px-3.5 py-2 text-sm transition",
-        disabled
-          ? "cursor-not-allowed border-slate-200 text-slate-400 bg-white"
-          : "border-slate-300 bg-white text-slate-800 hover:bg-slate-50"
+        disabled ? "cursor-not-allowed border-slate-200 text-slate-400 bg-white" : "border-slate-300 bg-white text-slate-800 hover:bg-slate-50"
       )}
     >
       {children}
@@ -1454,18 +1467,13 @@ function Th({ children, sortKey, sortBy, sortDir, onSort }) {
   const active = sortBy === sortKey;
   return (
     <th
-      className={cx(
-        "px-5 py-3 font-semibold select-none cursor-pointer",
-        active && "text-slate-900"
-      )}
+      className={cx("px-5 py-3 font-semibold select-none cursor-pointer", active && "text-slate-900")}
       onClick={() => onSort(sortKey)}
       title="Sort"
     >
       <span className="inline-flex items-center gap-1">
         {children}
-        <span className={cx("text-xs", active ? "opacity-100" : "opacity-20")}>
-          {active ? (sortDir === "asc" ? "▲" : "▼") : "▲"}
-        </span>
+        <span className={cx("text-xs", active ? "opacity-100" : "opacity-20")}>{active ? (sortDir === "asc" ? "▲" : "▼") : "▲"}</span>
       </span>
     </th>
   );
@@ -1496,7 +1504,7 @@ function Field({ label, name, value, onChange, type = "text" }) {
         name={name}
         value={value}
         onChange={onChange}
-        className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-slate-900 placeholder-slate-400 outline-none ring-1 ring-white/70 focus:ring-2 focus:ring-cyan-400/40 focus:border-cyan-300 shadow-[0_0_24px_-12px_rgba(34,211,238,0.45)]"
+        className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-slate-900 placeholder-slate-400 outline-none ring-1 ring-white/70 focus:ring-2 focus:ring-cyan-400/40 focus:border-cyan-300"
       />
     </label>
   );

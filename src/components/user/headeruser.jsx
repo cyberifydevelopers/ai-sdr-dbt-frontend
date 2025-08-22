@@ -1,258 +1,11 @@
-// // // 
 
-// // "use client";
 
-// // import { useState, useEffect } from "react";
-// // import { LogOut, Menu } from "lucide-react";
-// // import { motion } from "framer-motion";
 
-// // // --- Small helper: CX (no TS types) ---
-// // function cx(...arr) {
-// //   return arr.filter(Boolean).join(" ");
-// // }
 
-// // // --- Neon Funnel Logo (animated, no solid bg) ---
-// // function NeonFunnelLogo() {
-// //   return (
-// //     <div className="relative h-12 w-12 sm:h-12 sm:w-12">
-// //       {/* Outer soft glow */}
-// //       <motion.div
-// //         className="absolute inset-0 rounded-2xl blur-md"
-// //         style={{
-// //           background:
-// //             "conic-gradient(from 0deg, rgba(59,130,246,0.25), rgba(34,211,238,0.25), rgba(59,130,246,0.25))",
-// //         }}
-// //         animate={{ rotate: 360 }}
-// //         transition={{ duration: 8, repeat: Infinity, ease: "linear" }}
-// //         aria-hidden
-// //       />
-// //       {/* Inner ring */}
-// //       <div className="absolute inset-0 rounded-2xl border border-white/15 bg-white/10 backdrop-blur-[2px] shadow-[0_0_30px_rgba(59,130,246,0.15)]" />
-// //       {/* SVG Funnel path */}
-// //       <motion.svg
-// //         viewBox="0 0 48 48"
-// //         className="relative z-10 h-full w-full p-2"
-// //         initial={{ opacity: 0.9 }}
-// //         animate={{ opacity: 1 }}
-// //         transition={{ duration: 0.6 }}
-// //         role="img"
-// //         aria-label="Lead generation funnel"
-// //       >
-// //         <defs>
-// //           <linearGradient id="neonStroke" x1="0" y1="0" x2="1" y2="1">
-// //             <stop offset="0%" stopColor="#3B82F6" />
-// //             <stop offset="100%" stopColor="#06B6D4" />
-// //           </linearGradient>
-// //           <filter id="glow">
-// //             <feGaussianBlur stdDeviation="2.5" result="coloredBlur" />
-// //             <feMerge>
-// //               <feMergeNode in="coloredBlur" />
-// //               <feMergeNode in="SourceGraphic" />
-// //             </feMerge>
-// //           </filter>
-// //         </defs>
-
-// //         {/* Funnel outline (animated draw) */}
-// //         <motion.path
-// //           d="M6 8h36l-14 15v7l-8 10v-17L6 8z"
-// //           fill="none"
-// //           stroke="url(#neonStroke)"
-// //           strokeWidth="2.8"
-// //           strokeLinecap="round"
-// //           strokeLinejoin="round"
-// //           filter="url(#glow)"
-// //           initial={{ pathLength: 0, pathOffset: 1 }}
-// //           animate={{ pathLength: 1, pathOffset: 0 }}
-// //           transition={{ duration: 2.2, repeat: Infinity, repeatType: "mirror", ease: "easeInOut" }}
-// //         />
-// //         {/* Moving particles through funnel */}
-// //         <motion.circle
-// //           cx="23"
-// //           cy="20"
-// //           r="1.6"
-// //           fill="#22D3EE"
-// //           initial={{ y: -8, opacity: 0.6 }}
-// //           animate={{ y: 12, opacity: [0.6, 1, 0.6] }}
-// //           transition={{ duration: 1.6, repeat: Infinity, ease: "easeInOut" }}
-// //         />
-// //         <motion.circle
-// //           cx="28"
-// //           cy="22"
-// //           r="1.3"
-// //           fill="#60A5FA"
-// //           initial={{ y: -10, opacity: 0.6 }}
-// //           animate={{ y: 14, opacity: [0.6, 1, 0.6] }}
-// //           transition={{ duration: 1.9, repeat: Infinity, ease: "easeInOut", delay: 0.25 }}
-// //         />
-// //       </motion.svg>
-// //       {/* Pulsing rim */}
-// //       <motion.div
-// //         className="absolute inset-0 rounded-2xl"
-// //         style={{ boxShadow: "0 0 22px 4px rgba(34,211,238,0.25)" }}
-// //         animate={{ opacity: [0.45, 0.9, 0.45] }}
-// //         transition={{ duration: 1.8, repeat: Infinity, ease: "easeInOut" }}
-// //         aria-hidden
-// //       />
-// //     </div>
-// //   );
-// // }
-
-// // export default function Header({ className = "", onMenuToggle }) {
-// //   const [username, setUsername] = useState("");
-
-// //   useEffect(() => {
-// //     const storedUsername = localStorage.getItem("name") || "User";
-// //     setUsername(storedUsername);
-// //   }, []);
-
-// //   const handleLogout = () => {
-// //     localStorage.removeItem("token");
-// //     window.location.href = "/login";
-// //   };
-
-// //   const getUserInitials = (name) =>
-// //     name
-// //       .split(" ")
-// //       .map((w) => w.charAt(0))
-// //       .join("")
-// //       .toUpperCase()
-// //       .slice(0, 2);
-
-// //   return (
-// //     <header
-// //       className={cx(
-// //         "sticky top-0 z-30 border-b border-slate-200/70 bg-white/80 backdrop-blur-md shadow-sm",
-// //         className
-// //       )}
-// //       style={{ left: 0, right: 0, height: "96px" }}
-// //     >
-// //       <div className="px-3 sm:px-4 lg:px-6 xl:px-8 h-full">
-// //         <div className="flex items-center justify-between h-full">
-// //           {/* Left: menu + logo + titles */}
-// //           <div className="flex items-center gap-2 sm:gap-4 min-w-0 flex-1">
-// //             {/* Mobile menu */}
-// //             {onMenuToggle && (
-// //               <button
-// //                 onClick={onMenuToggle}
-// //                 className="md:hidden p-2 rounded-xl hover:bg-slate-100 active:scale-95 transition"
-// //                 aria-label="Toggle menu"
-// //               >
-// //                 <Menu className="w-6 h-6 text-slate-700" />
-// //               </button>
-// //             )}
-
-// //             {/* Neon logo */}
-// //             <NeonFunnelLogo />
-
-// //             {/* Titles */}
-// //             <div className="min-w-0 flex-1">
-// //               {/* Desktop */}
-// //               <div className="hidden lg:block">
-// //                 <h1 className="font-extrabold tracking-tight text-2xl text-slate-900 select-none truncate">
-// //                   <span className="bg-clip-text text-transparent bg-gradient-to-r from-blue-600 via-cyan-500 to-blue-600">
-// //                     AI SDR - DBT
-// //                   </span>
-// //                 </h1>
-// //                 <div className="relative">
-// //                   <p className="text-xs font-medium text-slate-500 pr-6">
-// //                     Convert interest into booked meetings — automatically
-// //                   </p>
-// //                   {/* Shimmer underline */}
-// //                   <motion.div
-// //                     className="absolute -bottom-1 left-0 h-[2px] w-24 bg-gradient-to-r from-blue-500 via-cyan-400 to-transparent rounded-full"
-// //                     initial={{ x: -20, opacity: 0.4 }}
-// //                     animate={{ x: 40, opacity: [0.4, 0.9, 0.4] }}
-// //                     transition={{ duration: 2.4, repeat: Infinity, ease: "easeInOut" }}
-// //                   />
-// //                 </div>
-// //               </div>
-
-// //               {/* Tablet */}
-// //               <div className="hidden sm:block lg:hidden">
-// //                 <h1 className="font-bold text-lg text-slate-900 select-none truncate">
-// //                   <span className="bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-cyan-500">
-// //                     AI SDR - DBT
-// //                   </span>
-// //                 </h1>
-// //                 <p className="text-xs text-slate-500 font-medium truncate">
-// //                   Smart lead capture & scheduling
-// //                 </p>
-// //               </div>
-
-// //               {/* Mobile */}
-// //               <div className="sm:hidden">
-// //                 <h1 className="font-bold text-base text-slate-900 select-none truncate">
-// //                   AI SDR - DBT
-// //                 </h1>
-// //               </div>
-// //             </div>
-// //           </div>
-
-// //           {/* Right: user + logout */}
-// //           <div className="flex items-center gap-2 sm:gap-3 lg:gap-4 flex-shrink-0">
-// //             {/* Desktop user card */}
-// //             <motion.div
-// //               className="hidden lg:flex items-center gap-3 rounded-2xl border border-slate-200 bg-white/90 px-4 py-2 shadow-sm"
-// //               initial={{ y: -8, opacity: 0 }}
-// //               animate={{ y: 0, opacity: 1 }}
-// //               transition={{ duration: 0.35 }}
-// //             >
-// //               <div className="relative">
-// //                 <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-blue-600 to-cyan-500 text-white grid place-content-center text-sm font-bold shadow-[0_8px_24px_rgba(59,130,246,0.25)]">
-// //                   {getUserInitials(username)}
-// //                 </div>
-// //                 {/* Online dot */}
-// //                 <span className="absolute -right-0.5 -bottom-0.5 h-3 w-3 rounded-full bg-emerald-400 ring-2 ring-white" />
-// //               </div>
-// //               <div className="flex flex-col min-w-0">
-// //                 <p className="text-sm font-semibold text-slate-900 leading-tight truncate">
-// //                   Welcome back!
-// //                 </p>
-// //                 <p className="text-xs text-slate-600 font-medium truncate">{username}</p>
-// //               </div>
-// //             </motion.div>
-
-// //             {/* Tablet user */}
-// //             <div className="hidden sm:flex lg:hidden items-center gap-2 rounded-xl border border-slate-200 bg-white/90 px-3 py-2 shadow-sm">
-// //               <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-600 to-cyan-500 text-white grid place-content-center text-xs font-bold">
-// //                 {getUserInitials(username)}
-// //               </div>
-// //               <span className="text-sm font-semibold text-slate-900 truncate max-w-[90px]">
-// //                 {username}
-// //               </span>
-// //             </div>
-
-// //             {/* Mobile avatar */}
-// //             <div className="sm:hidden">
-// //               <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-blue-600 to-cyan-500 text-white grid place-content-center text-sm font-bold shadow-sm">
-// //                 {getUserInitials(username)}
-// //               </div>
-// //             </div>
-
-// //             {/* Logout */}
-// //             <motion.button
-// //               onClick={handleLogout}
-// //               aria-label="Sign out"
-// //               whileTap={{ scale: 0.96 }}
-// //               className="group relative flex items-center gap-2 rounded-2xl border border-red-200 bg-red-50 text-red-700 font-semibold hover:bg-red-100 hover:border-red-300 hover:text-red-800 focus:outline-none focus:ring-2 focus:ring-red-400 focus:ring-offset-2 transition-all shadow-sm px-3 py-2 lg:px-4 lg:py-2.5 text-xs sm:text-sm min-h-[40px]"
-// //             >
-// //               <LogOut className="w-5 h-5 transition-transform group-hover:scale-110" />
-// //               <span className="hidden lg:inline">Sign out</span>
-// //               <span className="hidden sm:inline lg:hidden">Out</span>
-// //             </motion.button>
-// //           </div>
-// //         </div>
-// //       </div>
-
-// //       {/* Bottom accent line */}
-// //       <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-slate-300 to-transparent" />
-// //     </header>
-// //   );
-// // }
 // "use client";
 
 // import { useState, useEffect } from "react";
-// import { LogOut, Menu } from "lucide-react";
+// import { LogOut } from "lucide-react";
 // import { motion } from "framer-motion";
 // import { useNavigate } from "react-router-dom";
 
@@ -262,10 +15,25 @@
 
 // const API_URL = import.meta.env?.VITE_API_URL || "http://localhost:8000";
 
-// /* ---------------- Neon Funnel Logo ---------------- */
-// function NeonFunnelLogo() {
+// /* ---------------- Neon Funnel Logo (click to toggle sidebar) ---------------- */
+// function NeonFunnelLogo({ onClick }) {
+//   // keyboard support for accessibility
+//   const handleKey = (e) => {
+//     if (e.key === "Enter" || e.key === " ") {
+//       e.preventDefault();
+//       onClick?.();
+//     }
+//   };
+
 //   return (
-//     <div className="relative h-12 w-12 sm:h-12 sm:w-12">
+//     <button
+//       type="button"
+//       onClick={onClick}
+//       onKeyDown={handleKey}
+//       title="Toggle menu"
+//       aria-label="Toggle menu"
+//       className="group relative h-12 w-12 sm:h-12 sm:w-12 rounded-2xl focus:outline-none focus:ring-2 focus:ring-cyan-400"
+//     >
 //       <motion.div
 //         className="absolute inset-0 rounded-2xl blur-md"
 //         style={{
@@ -337,7 +105,7 @@
 //         transition={{ duration: 1.8, repeat: Infinity, ease: "easeInOut" }}
 //         aria-hidden
 //       />
-//     </div>
+//     </button>
 //   );
 // }
 
@@ -382,7 +150,7 @@
 //         } else {
 //           setPhotoError(true);
 //         }
-//       } catch (e) {
+//       } catch {
 //         setPhotoError(true);
 //       }
 //     }
@@ -408,7 +176,6 @@
 //         className="group relative rounded-full p-1 bg-gradient-to-br from-blue-600 via-cyan-500 to-blue-600 shadow-[0_8px_24px_rgba(59,130,246,0.25)] focus:outline-none focus:ring-2 focus:ring-blue-300"
 //         aria-label="Edit profile"
 //       >
-//         {/* ↑ CHANGED: p-[2px] → p-1 (ring slightly thicker) */}
 //         <div className="rounded-full bg-white p-0.5">
 //           {photoUrl && !photoError ? (
 //             <img
@@ -446,6 +213,13 @@
 //     );
 //   };
 
+//   // Trigger a global toggle event so Sidebar can react (no prop drilling needed)
+//   const handleToggleSidebar = () => {
+//     window.dispatchEvent(new CustomEvent("app:toggle-sidebar"));
+//     // keep backward compatibility if parent passed a handler
+//     if (typeof onMenuToggle === "function") onMenuToggle();
+//   };
+
 //   return (
 //     <header
 //       className={cx(
@@ -457,16 +231,9 @@
 //       <div className="px-3 sm:px-4 lg:px-6 xl:px-8 h-full">
 //         <div className="flex items-center justify-between h-full">
 //           <div className="flex items-center gap-2 sm:gap-4 min-w-0 flex-1">
-//             {onMenuToggle && (
-//               <button
-//                 onClick={onMenuToggle}
-//                 className="md:hidden p-2 rounded-xl hover:bg-slate-100 active:scale-95 transition"
-//                 aria-label="Toggle menu"
-//               >
-//                 <Menu className="w-6 h-6 text-slate-700" />
-//               </button>
-//             )}
-//             <NeonFunnelLogo />
+//             {/* Removed the floating mobile toggle; click the logo instead */}
+//             <NeonFunnelLogo onClick={handleToggleSidebar} />
+
 //             <div className="min-w-0 flex-1">
 //               <div className="hidden lg:block">
 //                 <h1 className="font-extrabold tracking-tight text-2xl text-slate-900 select-none truncate">
@@ -558,6 +325,14 @@
 
 
 
+
+
+
+
+
+
+
+// src/components/user/UserHeader.jsx
 "use client";
 
 import { useState, useEffect } from "react";
@@ -573,7 +348,6 @@ const API_URL = import.meta.env?.VITE_API_URL || "http://localhost:8000";
 
 /* ---------------- Neon Funnel Logo (click to toggle sidebar) ---------------- */
 function NeonFunnelLogo({ onClick }) {
-  // keyboard support for accessibility
   const handleKey = (e) => {
     if (e.key === "Enter" || e.key === " ") {
       e.preventDefault();
@@ -590,17 +364,9 @@ function NeonFunnelLogo({ onClick }) {
       aria-label="Toggle menu"
       className="group relative h-12 w-12 sm:h-12 sm:w-12 rounded-2xl focus:outline-none focus:ring-2 focus:ring-cyan-400"
     >
-      <motion.div
-        className="absolute inset-0 rounded-2xl blur-md"
-        style={{
-          background:
-            "conic-gradient(from 0deg, rgba(59,130,246,0.25), rgba(34,211,238,0.25), rgba(59,130,246,0.25))",
-        }}
-        animate={{ rotate: 360 }}
-        transition={{ duration: 8, repeat: Infinity, ease: "linear" }}
-        aria-hidden
-      />
-      <div className="absolute inset-0 rounded-2xl border border-white/15 bg-white/10 backdrop-blur-[2px] shadow-[0_0_30px_rgba(59,130,246,0.15)]" />
+      {/* Same minimal look as Admin header */}
+      <div className="absolute inset-0 rounded-2xl border border-white/15 bg-white/10 backdrop-blur-[2px]" />
+
       <motion.svg
         viewBox="0 0 48 48"
         className="relative z-10 h-full w-full p-2"
@@ -633,7 +399,12 @@ function NeonFunnelLogo({ onClick }) {
           filter="url(#glow)"
           initial={{ pathLength: 0, pathOffset: 1 }}
           animate={{ pathLength: 1, pathOffset: 0 }}
-          transition={{ duration: 2.2, repeat: Infinity, repeatType: "mirror", ease: "easeInOut" }}
+          transition={{
+            duration: 2.2,
+            repeat: Infinity,
+            repeatType: "mirror",
+            ease: "easeInOut",
+          }}
         />
         <motion.circle
           cx="23"
@@ -651,22 +422,24 @@ function NeonFunnelLogo({ onClick }) {
           fill="#60A5FA"
           initial={{ y: -10, opacity: 0.6 }}
           animate={{ y: 14, opacity: [0.6, 1, 0.6] }}
-          transition={{ duration: 1.9, repeat: Infinity, ease: "easeInOut", delay: 0.25 }}
+          transition={{
+            duration: 1.9,
+            repeat: Infinity,
+            ease: "easeInOut",
+            delay: 0.25,
+          }}
         />
       </motion.svg>
-      <motion.div
-        className="absolute inset-0 rounded-2xl"
-        style={{ boxShadow: "0 0 22px 4px rgba(34,211,238,0.25)" }}
-        animate={{ opacity: [0.45, 0.9, 0.45] }}
-        transition={{ duration: 1.8, repeat: Infinity, ease: "easeInOut" }}
-        aria-hidden
-      />
     </button>
   );
 }
 
-/* ---------------- Header ---------------- */
-export default function Header({ className = "", onMenuToggle }) {
+/* ---------------- User Header (same design as Admin header) ---------------- */
+export default function UserHeader({
+  className = "",
+  onMenuToggle,
+  profilePath = "/user/settings",
+}) {
   const [username, setUsername] = useState("");
   const [photoUrl, setPhotoUrl] = useState(null);
   const [photoError, setPhotoError] = useState(false);
@@ -687,15 +460,12 @@ export default function Header({ className = "", onMenuToggle }) {
           signal: controller.signal,
           mode: "cors",
         });
-
         if (!res.ok) {
           setPhotoError(true);
           return;
         }
-
         const data = await res.json();
         let url = data?.photo_url;
-
         if (url) {
           if (!/^https?:\/\//i.test(url)) {
             url = `${API_URL}${url.startsWith("/") ? "" : "/"}${url}`;
@@ -728,8 +498,8 @@ export default function Header({ className = "", onMenuToggle }) {
     return (
       <button
         type="button"
-        onClick={() => navigate("/user/settings")}
-        className="group relative rounded-full p-1 bg-gradient-to-br from-blue-600 via-cyan-500 to-blue-600 shadow-[0_8px_24px_rgba(59,130,246,0.25)] focus:outline-none focus:ring-2 focus:ring-blue-300"
+        onClick={() => navigate(profilePath)}
+        className="group relative rounded-full p-1 bg-gradient-to-br from-blue-600 via-cyan-500 to-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-300"
         aria-label="Edit profile"
       >
         <div className="rounded-full bg-white p-0.5">
@@ -747,7 +517,11 @@ export default function Header({ className = "", onMenuToggle }) {
           ) : (
             <div
               className="rounded-full bg-gradient-to-br from-blue-600 to-cyan-500 text-white grid place-content-center font-bold"
-              style={{ width: imgSize, height: imgSize, fontSize: imgSize < 36 ? 10 : 12 }}
+              style={{
+                width: imgSize,
+                height: imgSize,
+                fontSize: imgSize < 36 ? 10 : 12,
+              }}
             >
               {getUserInitials(username)}
             </div>
@@ -769,10 +543,8 @@ export default function Header({ className = "", onMenuToggle }) {
     );
   };
 
-  // Trigger a global toggle event so Sidebar can react (no prop drilling needed)
   const handleToggleSidebar = () => {
     window.dispatchEvent(new CustomEvent("app:toggle-sidebar"));
-    // keep backward compatibility if parent passed a handler
     if (typeof onMenuToggle === "function") onMenuToggle();
   };
 
@@ -786,11 +558,12 @@ export default function Header({ className = "", onMenuToggle }) {
     >
       <div className="px-3 sm:px-4 lg:px-6 xl:px-8 h-full">
         <div className="flex items-center justify-between h-full">
-          <div className="flex items-center gap-2 sm:gap-4 min-w-0 flex-1">
-            {/* Removed the floating mobile toggle; click the logo instead */}
+          <div className="flex items-center gap-3 sm:gap-4 min-w-0 flex-1">
+            {/* Click logo to toggle */}
             <NeonFunnelLogo onClick={handleToggleSidebar} />
 
             <div className="min-w-0 flex-1">
+              {/* Desktop title */}
               <div className="hidden lg:block">
                 <h1 className="font-extrabold tracking-tight text-2xl text-slate-900 select-none truncate">
                   <span className="bg-clip-text text-transparent bg-gradient-to-r from-blue-600 via-cyan-500 to-blue-600">
@@ -805,10 +578,16 @@ export default function Header({ className = "", onMenuToggle }) {
                     className="absolute -bottom-1 left-0 h-[2px] w-24 bg-gradient-to-r from-blue-500 via-cyan-400 to-transparent rounded-full"
                     initial={{ x: -20, opacity: 0.4 }}
                     animate={{ x: 40, opacity: [0.4, 0.9, 0.4] }}
-                    transition={{ duration: 2.4, repeat: Infinity, ease: "easeInOut" }}
+                    transition={{
+                      duration: 2.4,
+                      repeat: Infinity,
+                      ease: "easeInOut",
+                    }}
                   />
                 </div>
               </div>
+
+              {/* Tablet title */}
               <div className="hidden sm:block lg:hidden">
                 <h1 className="font-bold text-lg text-slate-900 select-none truncate">
                   <span className="bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-cyan-500">
@@ -819,15 +598,30 @@ export default function Header({ className = "", onMenuToggle }) {
                   Smart lead capture & scheduling
                 </p>
               </div>
-              <div className="sm:hidden">
+
+              {/* Mobile title (animated underline like Admin) */}
+              <div className="sm:hidden relative">
                 <h1 className="font-bold text-base text-slate-900 select-none truncate">
-                  AI SDR - DBT
+                  <span className="bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-cyan-500">
+                    AI SDR - DBT
+                  </span>
                 </h1>
+                <motion.div
+                  className="absolute -bottom-1 left-0 h-[2px] w-16 bg-gradient-to-r from-blue-500 via-cyan-400 to-transparent rounded-full"
+                  initial={{ x: -16, opacity: 0.4 }}
+                  animate={{ x: 36, opacity: [0.4, 0.9, 0.4] }}
+                  transition={{
+                    duration: 2.4,
+                    repeat: Infinity,
+                    ease: "easeInOut",
+                  }}
+                />
               </div>
             </div>
           </div>
 
           <div className="flex items-center gap-2 sm:gap-3 lg:gap-4 flex-shrink-0">
+            {/* Desktop welcome card */}
             <motion.div
               className="hidden lg:flex items-center gap-3 rounded-2xl border border-slate-200 bg-white/90 px-4 py-2 shadow-sm"
               initial={{ y: -8, opacity: 0 }}
@@ -841,10 +635,13 @@ export default function Header({ className = "", onMenuToggle }) {
                 <p className="text-sm font-semibold text-slate-900 leading-tight truncate">
                   Welcome back!
                 </p>
-                <p className="text-xs text-slate-600 font-medium truncate">{username}</p>
+                <p className="text-xs text-slate-600 font-medium truncate">
+                  {username}
+                </p>
               </div>
             </motion.div>
 
+            {/* Tablet compact */}
             <div className="hidden sm:flex lg:hidden items-center gap-2 rounded-xl border border-slate-200 bg-white/90 px-3 py-2 shadow-sm">
               <AvatarButton size={32} />
               <span className="text-sm font-semibold text-slate-900 truncate max-w-[90px]">
@@ -852,10 +649,12 @@ export default function Header({ className = "", onMenuToggle }) {
               </span>
             </div>
 
+            {/* Mobile avatar only */}
             <div className="sm:hidden">
               <AvatarButton size={36} />
             </div>
 
+            {/* Logout */}
             <motion.button
               onClick={() => {
                 localStorage.removeItem("token");
@@ -873,7 +672,15 @@ export default function Header({ className = "", onMenuToggle }) {
         </div>
       </div>
 
+      {/* Subtle divider */}
       <div className="absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-slate-300 to-transparent" />
     </header>
   );
 }
+
+
+
+
+
+
+
