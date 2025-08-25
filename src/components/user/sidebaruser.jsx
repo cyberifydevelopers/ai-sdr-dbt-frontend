@@ -708,7 +708,9 @@ export default function Sidebar() {
     { id: "phoneCalls", label: "Phone Numbers", icon: Phone, href: "/user/callhistory", color: "text-orange-600" },
     { id: "callassistence", label: "Assistants", icon: FaRobot, href: "/user/callassistent", color: "text-green-600" },
     { id: "Leads", label: "Leads", icon: Users, href: "/user/leads", color: "text-purple-600" },
+    { id: "Campain", label: "Campaigns", icon: Calendar, href: "/user/campain", color: "text-blue-600" },
     { id: "settings", label: "Settings", icon: Settings, href: "/user/settings", color: "text-gray-600" },
+   
   ];
 
   const SidebarContent = () => (

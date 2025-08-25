@@ -1,2463 +1,4745 @@
-// // src/pages/user/Campain.jsx
-// /* eslint-disable react-hooks/exhaustive-deps */
-// import React, { useEffect, useMemo, useState } from "react";
+
+
+
+
+
+
+
+
+
+// "use client";
+
+// import React, { useEffect, useMemo, useRef, useState } from "react";
+// import { toast } from "react-toastify";
 // import {
-//   Plus, Calendar, Clock, Globe2, Trash2, Edit, X, User, ListChecks,
-//   Check, Phone, Mail, RefreshCw, ChevronLeft, ChevronRight
+//   Search,
+//   RefreshCw,
+//   X,
+//   Loader2,
+//   Users,
+//   CheckCircle2,
+//   XCircle,
+//   Plus,
+//   CalendarDays,
+//   PhoneCall,
+//   Clock,
+//   Play,
+//   Pause,
+//   Square as StopSquare,
+//   Trash2,
+//   Eye,
+//   Download,
+//   Settings,
+//   Rocket,
+//   ChevronLeft,
+//   ChevronRight,
 // } from "lucide-react";
+// import { motion, AnimatePresence } from "framer-motion";
 
-// /* ---------------------------------------------
-//    Config
-// ---------------------------------------------- */
-// const API_URL = import.meta?.env?.VITE_API_URL || "http://localhost:8000";
+// /* ──────────────────────────────────────────────────────────────────────────
+//  * Config
+//  * ────────────────────────────────────────────────────────────────────────── */
+// const API_URL = import.meta.env?.VITE_API_URL || "http://localhost:8000";
+// const API_PREFIX = import.meta.env?.VITE_API_PREFIX || "/api";
 
-// // Backend paths based on your pasted router:
-// // - Files (lists):   GET   /api/leads/files
-// // - Leads:           GET   /api/leads?file_id=ID
-// // - Add lead:        POST  /api/leads/add_manually_lead
-// // - Create list:     POST  /api/leads/create-list
-// //
-// // Campaign endpoints are not shown in your snippet. We'll try these first:
-// // - List campaigns:  GET   /api/campaigns
-// // - Create:          POST  /api/campaigns
-// // - Update:          PUT   /api/campaigns/:id
-// // - Delete:          DELETE /api/campaigns/:id
-// // - Toggle:          POST  /api/campaigns/:id/toggle
-// // If missing, we transparently fall back to localStorage so the page still works end-to-end.
-
-// const R = {
-//   LIST_FILES: `${API_URL}/api/leads/files`,
-//   LEADS:      `${API_URL}/api/leads`,
-//   ADD_LEAD:   `${API_URL}/api/leads/add_manually_lead`,
-//   CREATE_LIST:`${API_URL}/api/leads/create-list`,
-
-//   CAMPAIGNS:  `${API_URL}/api/campaigns`, // assumed
-//   CAMPAIGN:   (id) => `${API_URL}/api/campaigns/${id}`,
-//   TOGGLE:     (id) => `${API_URL}/api/campaigns/${id}/toggle`,
+// // Campaign endpoints (aligned to your FastAPI router)
+// const CAMPAIGNS_BASE = `${API_URL}${API_PREFIX}/campaigns`;
+// const EP = {
+//   LIST: `${CAMPAIGNS_BASE}/campaigns`,
+//   CREATE: `${CAMPAIGNS_BASE}/campaigns`,
+//   DETAIL: (id) => `${CAMPAIGNS_BASE}/campaigns/${id}`,
+//   SCHEDULE: (id) => `${CAMPAIGNS_BASE}/campaigns/${id}/schedule`,
+//   RETRY: (id) => `${CAMPAIGNS_BASE}/campaigns/${id}/retry-policy`,
+//   PAUSE: (id) => `${CAMPAIGNS_BASE}/campaigns/${id}/pause`,
+//   RESUME: (id) => `${CAMPAIGNS_BASE}/campaigns/${id}/resume`,
+//   STOP: (id) => `${CAMPAIGNS_BASE}/campaigns/${id}/stop`,
+//   RUN_NOW: (id) => `${CAMPAIGNS_BASE}/campaigns/${id}/run-now`,
+//   ICS: (id) => `${CAMPAIGNS_BASE}/campaigns/${id}/calendar.ics`,
+//   DELETE: (id) => `${CAMPAIGNS_BASE}/campaigns/${id}`,
 // };
 
-// // Optionally forward auth:
-// const authHeader = () => {
-//   const token = localStorage.getItem("token");
-//   return token ? { Authorization: `Bearer ${token}` } : {};
+// // Resource endpoints — using common REST names; adjust if yours differ
+// const RESOURCES = {
+//   FILES: `${API_URL}${API_PREFIX}/files`, // should return [{id, name, ...}]
+//   ASSISTANTS: `${API_URL}${API_PREFIX}/assistants`, // [{id, name, vapi_assistant_id, vapi_phone_uuid, attached_number, ...}]
+//   LEADS: (fileId) => `${API_URL}${API_PREFIX}/leads${fileId ? `?file_id=${fileId}` : ""}`, // [{id, first_name, last_name, email, mobile, file_id, dnc}]
 // };
 
-// /* ---------------------------------------------
-//    Utilities
-// ---------------------------------------------- */
-// const neon = {
-//   card: "shadow-[0_0_15px_rgba(59,130,246,0.25)]",
-//   ring: "focus:ring-2 focus:ring-blue-500/30 focus:outline-none",
-//   glowBorder: "border border-blue-100/50",
-//   header: "bg-gradient-to-r from-white to-blue-50",
+// /* Utilities */
+// function cx(...arr) {
+//   return arr.filter(Boolean).join(" ");
+// }
+// const unknown = (v) => {
+//   if (v === undefined || v === null) return "Unknown";
+//   const s = String(v).trim();
+//   return s === "" || s.toLowerCase() === "null" || s.toLowerCase() === "undefined" ? "Unknown" : s;
+// };
+// function useDebounce(value, delay = 250) {
+//   const [debounced, setDebounced] = useState(value);
+//   useEffect(() => {
+//     const t = setTimeout(() => setDebounced(value), delay);
+//     return () => clearTimeout(t);
+//   }, [value, delay]);
+//   return debounced;
+// }
+// function fmtDT(d) {
+//   try {
+//     const dt = new Date(d);
+//     if (isNaN(dt.getTime())) return "Unknown";
+//     return dt.toLocaleString();
+//   } catch {
+//     return "Unknown";
+//   }
+// }
+// function toInputDateTimeLocal(value) {
+//   if (!value) return "";
+//   const d = new Date(value);
+//   if (isNaN(d.getTime())) return "";
+//   const yyyy = d.getFullYear();
+//   const mm = String(d.getMonth() + 1).padStart(2, "0");
+//   const dd = String(d.getDate()).padStart(2, "0");
+//   const hh = String(d.getHours()).padStart(2, "0");
+//   const mi = String(d.getMinutes()).padStart(2, "0");
+//   return `${yyyy}-${mm}-${dd}T${hh}:${mi}`;
+// }
+// function fromInputDateTimeLocal(s) {
+//   if (!s) return null;
+//   const d = new Date(s);
+//   return isNaN(d.getTime()) ? null : d.toISOString();
+// }
+
+// /* Motion variants */
+// const fadeUp = {
+//   hidden: { opacity: 0, y: 8 },
+//   show: { opacity: 1, y: 0, transition: { duration: 0.24, ease: "easeOut" } },
+// };
+// const stagger = { show: { transition: { staggerChildren: 0.05 } } };
+// const overlay = {
+//   hidden: { opacity: 0 },
+//   show: { opacity: 1, transition: { duration: 0.18 } },
+//   exit: { opacity: 0, transition: { duration: 0.12 } },
 // };
 
-// const tzOptions = [
+// /* Pill chip */
+// function Chip({ children, tone = "slate" }) {
+//   const tones = {
+//     slate: "bg-slate-100 text-slate-700 ring-slate-200",
+//     green: "bg-emerald-100 text-emerald-700 ring-emerald-200",
+//     red: "bg-rose-100 text-rose-700 ring-rose-200",
+//     blue: "bg-blue-100 text-blue-700 ring-blue-200",
+//     orange: "bg-orange-100 text-orange-700 ring-orange-200",
+//     purple: "bg-purple-100 text-purple-700 ring-purple-200",
+//   };
+//   return (
+//     <span className={cx("inline-flex items-center rounded-full px-2.5 py-1 text-xs ring-1", tones[tone] || tones.slate)}>
+//       {children}
+//     </span>
+//   );
+// }
+
+// /* Stat card */
+// function StatCard({ label, value, Icon, tone = "blue" }) {
+//   const ring = tone === "blue" ? "ring-blue-200/60" : tone === "cyan" ? "ring-cyan-200/60" : "ring-slate-200/60";
+//   const bg =
+//     tone === "blue"
+//       ? "from-blue-600 to-cyan-500"
+//       : tone === "cyan"
+//       ? "from-cyan-500 to-blue-600"
+//       : "from-slate-500 to-slate-700";
+//   return (
+//     <motion.div initial={{ y: 8, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="relative rounded-3xl border border-slate-200 bg-white p-5 shadow-xl">
+//       <div className="relative z-10 flex items-center gap-3">
+//         <div className={`flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br ${bg} text-white shadow-inner ring-1 ${ring}`}>
+//           <Icon className="h-7 w-7" />
+//         </div>
+//         <div>
+//           <div className="text-xs uppercase tracking-wider text-slate-500">{label}</div>
+//           <div className="text-2xl font-black text-slate-900">{value}</div>
+//         </div>
+//       </div>
+//     </motion.div>
+//   );
+// }
+
+// /* Status chip */
+// function StatusChip({ status }) {
+//   const s = (status || "").toLowerCase();
+//   if (s === "scheduled") return <Chip tone="blue">Scheduled</Chip>;
+//   if (s === "running") return <Chip tone="green">Running</Chip>;
+//   if (s === "paused") return <Chip tone="orange">Paused</Chip>;
+//   if (s === "stopped") return <Chip tone="red">Stopped</Chip>;
+//   if (s === "completed") return <Chip tone="purple">Completed</Chip>;
+//   if (s === "draft") return <Chip tone="slate">Draft</Chip>;
+//   return <Chip tone="slate">{unknown(status)}</Chip>;
+// }
+
+// /* Timezone list (from your sample; trimmed would also work) */
+// const TIMEZONES = [
 //   { value: "UTC", label: "UTC" },
-//   { value: "Etc/GMT+12", label: "Etc/GMT+12" },
-//   { value: "Etc/GMT+11", label: "Etc/GMT+11" },
-//   { value: "Etc/GMT+10", label: "Etc/GMT+10" },
-//   { value: "Etc/GMT+9", label: "Etc/GMT+9" },
-//   { value: "Etc/GMT+8", label: "Etc/GMT+8" },
-//   { value: "Etc/GMT+7", label: "Etc/GMT+7" },
-//   { value: "Etc/GMT+6", label: "Etc/GMT+6" },
-//   { value: "Etc/GMT+5", label: "Etc/GMT+5" },
-//   { value: "Etc/GMT+4", label: "Etc/GMT+4" },
-//   { value: "Etc/GMT+3", label: "Etc/GMT+3" },
-//   { value: "Etc/GMT+2", label: "Etc/GMT+2" },
-//   { value: "Etc/GMT+1", label: "Etc/GMT+1" },
-//   { value: "Etc/GMT-1", label: "Etc/GMT-1" },
-//   { value: "Etc/GMT-2", label: "Etc/GMT-2" },
-//   { value: "Etc/GMT-3", label: "Etc/GMT-3" },
-//   { value: "Etc/GMT-4", label: "Etc/GMT-4" },
-//   { value: "Etc/GMT-5", label: "Etc/GMT-5" },
-//   { value: "Etc/GMT-6", label: "Etc/GMT-6" },
-//   { value: "Etc/GMT-7", label: "Etc/GMT-7" },
-//   { value: "Etc/GMT-8", label: "Etc/GMT-8" },
-//   { value: "Etc/GMT-9", label: "Etc/GMT-9" },
-//   { value: "Etc/GMT-10", label: "Etc/GMT-10" },
-//   { value: "Etc/GMT-11", label: "Etc/GMT-11" },
-//   { value: "Etc/GMT-12", label: "Etc/GMT-12" },
 //   { value: "America/New_York", label: "America/New_York" },
 //   { value: "America/Chicago", label: "America/Chicago" },
 //   { value: "America/Denver", label: "America/Denver" },
 //   { value: "America/Los_Angeles", label: "America/Los_Angeles" },
 //   { value: "America/Phoenix", label: "America/Phoenix" },
-//   { value: "America/Toronto", label: "America/Toronto" },
-//   { value: "America/Vancouver", label: "America/Vancouver" },
-//   { value: "America/Sao_Paulo", label: "America/Sao_Paulo" },
-//   { value: "America/Buenos_Aires", label: "America/Buenos_Aires" },
-//   { value: "America/Mexico_City", label: "America/Mexico_City" },
-//   { value: "America/Bogota", label: "America/Bogota" },
-//   { value: "America/Lima", label: "America/Lima" },
 //   { value: "Europe/London", label: "Europe/London" },
 //   { value: "Europe/Berlin", label: "Europe/Berlin" },
 //   { value: "Europe/Paris", label: "Europe/Paris" },
-//   { value: "Europe/Madrid", label: "Europe/Madrid" },
-//   { value: "Europe/Rome", label: "Europe/Rome" },
-//   { value: "Europe/Moscow", label: "Europe/Moscow" },
-//   { value: "Europe/Istanbul", label: "Europe/Istanbul" },
-//   { value: "Europe/Amsterdam", label: "Europe/Amsterdam" },
-//   { value: "Europe/Stockholm", label: "Europe/Stockholm" },
-//   { value: "Africa/Cairo", label: "Africa/Cairo" },
-//   { value: "Africa/Johannesburg", label: "Africa/Johannesburg" },
-//   { value: "Africa/Lagos", label: "Africa/Lagos" },
-//   { value: "Africa/Accra", label: "Africa/Accra" },
-//   { value: "Asia/Tokyo", label: "Asia/Tokyo" },
-//   { value: "Asia/Seoul", label: "Asia/Seoul" },
-//   { value: "Asia/Shanghai", label: "Asia/Shanghai" },
-//   { value: "Asia/Hong_Kong", label: "Asia/Hong_Kong" },
-//   { value: "Asia/Singapore", label: "Asia/Singapore" },
 //   { value: "Asia/Kolkata", label: "Asia/Kolkata" },
-//   { value: "Asia/Dhaka", label: "Asia/Dhaka" },
-//   { value: "Asia/Bangkok", label: "Asia/Bangkok" },
-//   { value: "Asia/Tehran", label: "Asia/Tehran" },
-//   { value: "Asia/Riyadh", label: "Asia/Riyadh" },
-//   { value: "Asia/Jerusalem", label: "Asia/Jerusalem" },
-//   { value: "Asia/Karachi", label: "Asia/Karachi" },
+//   { value: "Asia/Singapore", label: "Asia/Singapore" },
+//   { value: "Asia/Tokyo", label: "Asia/Tokyo" },
+//   { value: "Asia/Dubai", label: "Asia/Dubai" },
 //   { value: "Australia/Sydney", label: "Australia/Sydney" },
-//   { value: "Australia/Melbourne", label: "Australia/Melbourne" },
-//   { value: "Australia/Adelaide", label: "Australia/Adelaide" },
-//   { value: "Australia/Perth", label: "Australia/Perth" },
-//   { value: "Pacific/Auckland", label: "Pacific/Auckland" },
-//   { value: "Pacific/Fiji", label: "Pacific/Fiji" },
-//   { value: "Pacific/Honolulu", label: "Pacific/Honolulu" },
-//   { value: "Atlantic/Reykjavik", label: "Atlantic/Reykjavik" },
-//   { value: "Arctic/Longyearbyen", label: "Arctic/Longyearbyen" },
-//   { value: "Antarctica/McMurdo", label: "Antarctica/McMurdo" },
-//   { value: "Indian/Maldives", label: "Indian/Maldives" },
-//   { value: "Indian/Chagos", label: "Indian/Chagos" },
-//   { value: "Indian/Cocos", label: "Indian/Cocos" },
-//   { value: "Indian/Kerguelen", label: "Indian/Kerguelen" },
-//   { value: "Europe/Lisbon", label: "Europe/Lisbon" },
-//   { value: "Europe/Zurich", label: "Europe/Zurich" },
-//   { value: "Europe/Vienna", label: "Europe/Vienna" },
-//   { value: "Europe/Warsaw", label: "Europe/Warsaw" },
-//   { value: "Europe/Bucharest", label: "Europe/Bucharest" },
-//   { value: "Europe/Athens", label: "Europe/Athens" },
-//   { value: "Asia/Yerevan", label: "Asia/Yerevan" },
-//   { value: "Asia/Tbilisi", label: "Asia/Tbilisi" },
-//   { value: "Asia/Yekaterinburg", label: "Asia/Yekaterinburg" },
-//   { value: "Asia/Vladivostok", label: "Asia/Vladivostok" },
-//   { value: "Asia/Yakutsk", label: "Asia/Yakutsk" },
-//   { value: "Asia/Ulaanbaatar", label: "Asia/Ulaanbaatar" },
-//   { value: "Asia/Urumqi", label: "Asia/Urumqi" },
+//   // … you can paste the full long list if needed
 // ];
 
-// function todayYMD() {
-//   return new Date().toISOString().slice(0, 10);
-// }
+// /* ──────────────────────────────────────────────────────────────────────────
+//  * Page: Campaigns
+//  * ────────────────────────────────────────────────────────────────────────── */
+// export default function CampaignsPage() {
+//   const token = useRef(localStorage.getItem("token") || null);
 
-// function toISODate(dateStr) {
-//   // "YYYY-MM-DD" -> ISO start of day
-//   try {
-//     return new Date(dateStr + "T00:00:00").toISOString();
-//   } catch {
-//     return new Date().toISOString();
-//   }
-// }
-
-// /* ---------------------------------------------
-//    LocalStorage Campaign Fallback
-// ---------------------------------------------- */
-// const LS_KEY = "campaigns-fallback";
-
-// function lsGetCampaigns() {
-//   try {
-//     const raw = localStorage.getItem(LS_KEY);
-//     return raw ? JSON.parse(raw) : [];
-//   } catch {
-//     return [];
-//   }
-// }
-// function lsSetCampaigns(data) {
-//   try { localStorage.setItem(LS_KEY, JSON.stringify(data)); } catch {}
-// }
-
-// /* ---------------------------------------------
-//    Minimal UI Helpers
-// ---------------------------------------------- */
-// const Modal = ({ open, onClose, children, wide }) => {
-//   if (!open) return null;
-//   return (
-//     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
-//       <div className={`relative bg-white rounded-2xl p-6 w-[95vw] ${wide ? "max-w-5xl" : "max-w-3xl"} ${neon.glowBorder} ${neon.card}`}>
-//         <button
-//           onClick={onClose}
-//           className="absolute top-3 right-3 text-gray-500 hover:text-blue-600 transition"
-//           aria-label="Close"
-//         >
-//           <X className="w-6 h-6" />
-//         </button>
-//         {children}
-//       </div>
-//     </div>
-//   );
-// };
-
-// const Confirm = ({ open, onClose, onConfirm, message }) => (
-//   <Modal open={open} onClose={onClose}>
-//     <div className="space-y-4">
-//       <h3 className="text-xl font-semibold text-blue-900">Confirm Delete</h3>
-//       <p className="text-gray-600">{message || "Are you sure?"}</p>
-//       <div className="flex justify-end gap-2">
-//         <button className="px-4 py-2 rounded border border-gray-300 hover:bg-gray-50" onClick={onClose}>Cancel</button>
-//         <button className="px-4 py-2 rounded bg-red-600 text-white hover:bg-red-700" onClick={() => { onConfirm(); onClose(); }}>Delete</button>
-//       </div>
-//     </div>
-//   </Modal>
-// );
-
-// /* ---------------------------------------------
-//    Main Component
-// ---------------------------------------------- */
-// export default function Campain() {
-//   // List & lead state
-//   const [lists, setLists] = useState([]);
-//   const [leads, setLeads] = useState([]);
-//   const [selectedListId, setSelectedListId] = useState(null);
-//   const [selectedLeadIds, setSelectedLeadIds] = useState([]);
-
-//   // Campaigns
+//   // Data & UI state
 //   const [campaigns, setCampaigns] = useState([]);
-//   const [loadingCampaigns, setLoadingCampaigns] = useState(false);
+//   const [loading, setLoading] = useState(true);
+//   const [refreshing, setRefreshing] = useState(false);
 
-//   // Create/Edit flow
-//   const [step, setStep] = useState(0);
-//   const [campaignName, setCampaignName] = useState("");
-//   const [assistantId, setAssistantId] = useState(""); // input text (since assistant service is unknown)
-//   const [retryNonPicking, setRetryNonPicking] = useState(false);
-//   const [maxRetries, setMaxRetries] = useState(3);
-//   const [startDate, setStartDate] = useState("");
-//   const [endDate, setEndDate] = useState("");
-//   const [callingDays, setCallingDays] = useState(["Mon", "Tue", "Wed", "Thu", "Fri"]);
-//   const [callingHours, setCallingHours] = useState({ start: "09:00", end: "18:00" });
-//   const [timezone, setTimezone] = useState("UTC");
+//   const [files, setFiles] = useState([]);
+//   const [assistants, setAssistants] = useState([]);
+//   const [leadsForFile, setLeadsForFile] = useState([]);
+//   const [leadsLoading, setLeadsLoading] = useState(false);
+
+//   const [query, setQuery] = useState("");
+//   const debouncedQuery = useDebounce(query, 250);
+
+//   // Sorting & paging
+//   const [sortBy, setSortBy] = useState("created_at");
+//   const [sortDir, setSortDir] = useState("desc");
+//   const [page, setPage] = useState(1);
+//   const [pageSize, setPageSize] = useState(10);
+
+//   // Create drawer
+//   const [showCreate, setShowCreate] = useState(false);
 //   const [creating, setCreating] = useState(false);
-//   const [editingCampaign, setEditingCampaign] = useState(null);
+//   const [createForm, setCreateForm] = useState({
+//     name: "",
+//     file_id: "",
+//     assistant_id: "",
+//     selection_mode: "ALL",
+//     include_lead_ids: [], // array of numbers
+//     exclude_lead_ids: [], // array of numbers
+//     timezone: "America/Los_Angeles",
+//     days_of_week: [0, 1, 2, 3, 4],
+//     daily_start: "09:00",
+//     daily_end: "18:00",
+//     start_at: "",
+//     end_at: "",
+//     calls_per_minute: 10,
+//     parallel_calls: 2,
+//     retry_on_busy: true,
+//     busy_retry_delay_minutes: 15,
+//     max_attempts: 3,
+//   });
+//   const [leadSearch, setLeadSearch] = useState("");
 
-//   // UI modals
-//   const [openAddLead, setOpenAddLead] = useState(false);
-//   const [openCreateList, setOpenCreateList] = useState(false);
-//   const [confirmDelete, setConfirmDelete] = useState({ open: false, id: null });
+//   // Details drawer
+//   const [showDetails, setShowDetails] = useState(false);
+//   const [activeCampaign, setActiveCampaign] = useState(null);
+//   const [detailsLoading, setDetailsLoading] = useState(false);
+//   const [details, setDetails] = useState(null);
 
-//   // Notifications (lightweight)
-//   const notify = (msg, type = "info") => {
-//     console[type === "error" ? "error" : type === "success" ? "log" : "log"]("[notice]", msg);
-//   };
-
-//   /* ---------------------------------------------
-//      Fetch Lists & Campaigns
-//   ---------------------------------------------- */
+//   /* Fetch list + resources on mount */
 //   useEffect(() => {
-//     fetchLists();
 //     fetchCampaigns();
+//     fetchFiles();
+//     fetchAssistants();
+//     // eslint-disable-next-line
 //   }, []);
 
-//   async function fetchLists() {
-//     try {
-//       const res = await fetch(R.LIST_FILES, { headers: { ...authHeader() } });
-//       if (!res.ok) throw new Error("Failed to fetch lists");
-//       const data = await res.json();
-//       setLists(Array.isArray(data) ? data : []);
-//     } catch (e) {
-//       notify("Could not load lists from server. Showing empty list.", "error");
-//       setLists([]);
+//   async function authedFetch(url, options = {}) {
+//     if (!token.current) {
+//       toast.error("No auth token found. Please log in.");
+//       throw new Error("No token");
 //     }
-//   }
-
-//   async function fetchLeadsForList(listId) {
-//     if (!listId) return;
-//     try {
-//       const res = await fetch(`${R.LEADS}?file_id=${listId}`, { headers: { ...authHeader() } });
-//       if (!res.ok) throw new Error("Failed to fetch leads");
-//       const data = await res.json();
-//       const normalized = (Array.isArray(data) ? data : []).map((d) => ({
-//         id: d.id,
-//         name: [d.first_name, d.last_name].filter(Boolean).join(" ") || "Unknown",
-//         phone: d.mobile || "",
-//         email: d.email || "",
-//       }));
-//       setLeads(normalized);
-//       // default select all when (re)loading in create mode
-//       setSelectedLeadIds(normalized.map((l) => l.id));
-//     } catch (e) {
-//       notify("Could not load leads for that list.", "error");
-//       setLeads([]);
-//       setSelectedLeadIds([]);
-//     }
+//     const res = await fetch(url, {
+//       ...options,
+//       headers: {
+//         ...(options.headers || {}),
+//         Authorization: `Bearer ${token.current}`,
+//       },
+//     });
+//     return res;
 //   }
 
 //   async function fetchCampaigns() {
-//     setLoadingCampaigns(true);
 //     try {
-//       const res = await fetch(R.CAMPAIGNS, { headers: { ...authHeader() } });
-//       if (!res.ok) throw new Error("Server campaigns endpoint missing");
+//       setLoading(true);
+//       const res = await authedFetch(EP.LIST);
+//       if (!res.ok) throw new Error(`HTTP ${res.status}`);
 //       const data = await res.json();
-//       // Normalize
-//       const arr = Array.isArray(data) ? data : [];
-//       setCampaigns(arr);
-//       lsSetCampaigns(arr); // keep local cache as well
+//       setCampaigns(Array.isArray(data) ? data : []);
 //     } catch (e) {
-//       // fallback to localStorage
-//       const local = lsGetCampaigns();
-//       setCampaigns(local);
+//       console.error(e);
+//       toast.error("Failed to fetch campaigns");
+//       setCampaigns([]);
 //     } finally {
-//       setLoadingCampaigns(false);
+//       setLoading(false);
 //     }
 //   }
-
-//   /* ---------------------------------------------
-//      Campaign CRUD (API-first, LS fallback)
-//   ---------------------------------------------- */
-//   async function createCampaign(payload) {
+//   async function fetchFiles() {
 //     try {
-//       const res = await fetch(R.CAMPAIGNS, {
-//         method: "POST",
-//         headers: { "Content-Type": "application/json", ...authHeader() },
-//         body: JSON.stringify(payload),
-//       });
-//       if (!res.ok) throw new Error("Create failed");
-//       const saved = await res.json();
-//       await fetchCampaigns();
-//       notify("Campaign created", "success");
-//       return saved;
-//     } catch {
-//       const local = lsGetCampaigns();
-//       const id = Math.max(0, ...local.map((c) => c.id || 0)) + 1;
-//       const created = { id, is_active: false, created_at: new Date().toISOString(), ...payload };
-//       lsSetCampaigns([created, ...local]);
-//       setCampaigns([created, ...campaigns]);
-//       notify("Campaign created locally (fallback).", "success");
-//       return created;
-//     }
-//   }
-
-//   async function updateCampaign(id, payload) {
-//     try {
-//       const res = await fetch(R.CAMPAIGN(id), {
-//         method: "PUT",
-//         headers: { "Content-Type": "application/json", ...authHeader() },
-//         body: JSON.stringify(payload),
-//       });
-//       if (!res.ok) throw new Error("Update failed");
-//       await fetchCampaigns();
-//       notify("Campaign updated", "success");
-//     } catch {
-//       const local = lsGetCampaigns().map((c) => (c.id === id ? { ...c, ...payload } : c));
-//       lsSetCampaigns(local);
-//       setCampaigns(local);
-//       notify("Campaign updated locally (fallback).", "success");
-//     }
-//   }
-
-//   async function deleteCampaign(id) {
-//     try {
-//       const res = await fetch(R.CAMPAIGN(id), {
-//         method: "DELETE",
-//         headers: { ...authHeader() },
-//       });
-//       if (!res.ok) throw new Error("Delete failed");
-//       await fetchCampaigns();
-//       notify("Campaign deleted", "success");
-//     } catch {
-//       const local = lsGetCampaigns().filter((c) => c.id !== id);
-//       lsSetCampaigns(local);
-//       setCampaigns(local);
-//       notify("Campaign deleted locally (fallback).", "success");
-//     }
-//   }
-
-//   async function toggleCampaignStatus(id) {
-//     try {
-//       const res = await fetch(R.TOGGLE(id), { method: "POST", headers: { ...authHeader() } });
-//       if (!res.ok) throw new Error("Toggle failed");
-//       await fetchCampaigns();
-//     } catch {
-//       // LS toggle
-//       const local = lsGetCampaigns().map((c) =>
-//         c.id === id ? { ...c, is_active: !c.is_active } : c
-//       );
-//       lsSetCampaigns(local);
-//       setCampaigns(local);
-//       notify("Status toggled locally (fallback).", "success");
-//     }
-//   }
-
-//   /* ---------------------------------------------
-//      Leads & Lists mutations
-//   ---------------------------------------------- */
-//   async function addLeadManual(form) {
-//     // Backend expects: first_name, last_name, email, add_date, mobile, file_id, salesforce_id?, other_data?
-//     const body = {
-//       first_name: form.first_name || "",
-//       last_name: form.last_name || "",
-//       email: form.email || "",
-//       add_date: todayYMD(),
-//       mobile: form.mobile || "",
-//       file_id: selectedListId,
-//       salesforce_id: form.salesforce_id || "",
-//       other_data: {
-//         Custom_0: form.custom1 || "",
-//         Custom_1: form.custom2 || "",
-//       },
-//     };
-//     const res = await fetch(R.ADD_LEAD, {
-//       method: "POST",
-//       headers: { "Content-Type": "application/json", ...authHeader() },
-//       body: JSON.stringify(body),
-//     });
-//     if (!res.ok) throw new Error("Failed to add lead");
-//     // refresh leads
-//     await fetchLeadsForList(selectedListId);
-//     notify("Lead added", "success");
-//   }
-
-//   async function createList(name) {
-//     const res = await fetch(R.CREATE_LIST, {
-//       method: "POST",
-//       headers: { "Content-Type": "application/json", ...authHeader() },
-//       body: JSON.stringify({ name }),
-//     });
-//     if (!res.ok) throw new Error("Failed to create list");
-//     await fetchLists();
-//     notify("List created", "success");
-//   }
-
-//   /* ---------------------------------------------
-//      Stepper Helpers
-//   ---------------------------------------------- */
-//   const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-//   function toggleDay(d) {
-//     setCallingDays((prev) =>
-//       prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d]
-//     );
-//   }
-//   function validateHours(s, e) {
-//     if (!s || !e) return false;
-//     const [sh, sm] = s.split(":").map(Number);
-//     const [eh, em] = e.split(":").map(Number);
-//     const start = sh * 60 + sm;
-//     const end = eh * 60 + em;
-//     return end > start;
-//   }
-
-//   function resetWizard() {
-//     setStep(0);
-//     setCampaignName("");
-//     setAssistantId("");
-//     setSelectedListId(null);
-//     setLeads([]);
-//     setSelectedLeadIds([]);
-//     setRetryNonPicking(false);
-//     setMaxRetries(3);
-//     setStartDate("");
-//     setEndDate("");
-//     setCallingDays(["Mon", "Tue", "Wed", "Thu", "Fri"]);
-//     setCallingHours({ start: "09:00", end: "18:00" });
-//     setTimezone("UTC");
-//     setEditingCampaign(null);
-//   }
-
-//   function goNext() {
-//     const today = todayYMD();
-//     if (step === 1) {
-//       if (!campaignName.trim()) return notify("Enter a campaign name", "error");
-//       if (!assistantId.trim()) return notify("Enter an assistant ID/Ref", "error");
-//     }
-//     if (step === 2) {
-//       if (!selectedListId) return notify("Select a list first", "error");
-//       // load leads when moving to step 3
-//       fetchLeadsForList(selectedListId);
-//     }
-//     if (step === 3) {
-//       if (selectedLeadIds.length === 0) return notify("Select at least one lead", "error");
-//     }
-//     if (step === 4) {
-//       if (!startDate) return notify("Select a start date", "error");
-//       if (startDate < today) return notify("Start date cannot be in the past", "error");
-//       if (!endDate) return notify("Select an end date", "error");
-//       if (endDate <= startDate) return notify("End date must be after start date", "error");
-//     }
-//     if (step === 5) {
-//       if (!validateHours(callingHours.start, callingHours.end)) {
-//         return notify("End time must be after start time", "error");
-//       }
-//     }
-//     setStep(step + 1);
-//   }
-//   function goBack() {
-//     setStep(step - 1);
-//   }
-
-//   async function onSaveCampaign() {
-//     setCreating(true);
-//     const payload = {
-//       name: campaignName,
-//       start_date: toISODate(startDate),
-//       end_date: toISODate(endDate),
-//       assistant_id: assistantId,
-//       list_id: selectedListId,
-//       calling_day: callingDays.join(","),
-//       calling_hour_start: callingHours.start,
-//       calling_hour_end: callingHours.end,
-//       timezone,
-//       skipped_leads: leads.filter((l) => !selectedLeadIds.includes(l.id)).map((l) => l.id),
-//       call_again: retryNonPicking,
-//       tries: retryNonPicking ? maxRetries : 0,
-//     };
-//     try {
-//       if (editingCampaign?.id) {
-//         await updateCampaign(editingCampaign.id, payload);
-//       } else {
-//         await createCampaign(payload);
-//       }
-//       resetWizard();
+//       const res = await authedFetch(RESOURCES.FILES);
+//       if (!res.ok) throw new Error(`HTTP ${res.status}`);
+//       const data = await res.json();
+//       setFiles(Array.isArray(data) ? data : data?.items || []);
 //     } catch (e) {
-//       notify("Failed to save campaign", "error");
+//       console.warn("Files fetch failed:", e.message);
+//       setFiles([]);
+//     }
+//   }
+//   async function fetchAssistants() {
+//     try {
+//       const res = await authedFetch(RESOURCES.ASSISTANTS);
+//       if (!res.ok) throw new Error(`HTTP ${res.status}`);
+//       const data = await res.json();
+//       // Only show usable assistants (must have VAPI id and attached number)
+//       const arr = Array.isArray(data) ? data : data?.items || [];
+//       const usable = arr.filter(
+//         (a) =>
+//           (a.vapi_assistant_id || a.vapiAssistantId) &&
+//           (a.vapi_phone_uuid || a.vapiPhoneUuid) &&
+//           (a.attached_number || a.attachedNumber)
+//       );
+//       setAssistants(usable);
+//     } catch (e) {
+//       console.warn("Assistants fetch failed:", e.message);
+//       setAssistants([]);
+//     }
+//   }
+
+//   async function loadLeadsForFile(fileId) {
+//     if (!fileId) {
+//       setLeadsForFile([]);
+//       return;
+//     }
+//     try {
+//       setLeadsLoading(true);
+//       const res = await authedFetch(RESOURCES.LEADS(fileId));
+//       if (!res.ok) throw new Error(`HTTP ${res.status}`);
+//       const json = await res.json();
+//       const list = Array.isArray(json) ? json : json?.leads || json?.items || [];
+//       setLeadsForFile(list);
+//     } catch (e) {
+//       console.warn("Leads fetch failed:", e.message);
+//       setLeadsForFile([]);
+//     } finally {
+//       setLeadsLoading(false);
+//     }
+//   }
+
+//   async function refreshAll() {
+//     setRefreshing(true);
+//     await fetchCampaigns();
+//     setRefreshing(false);
+//   }
+
+//   /* Derived list */
+//   const filtered = useMemo(() => {
+//     const q = debouncedQuery.trim().toLowerCase();
+//     let list = campaigns.filter((c) => {
+//       if (!q) return true;
+//       const fields = [
+//         (c.name || "").toLowerCase(),
+//         (c.status || "").toLowerCase(),
+//         String(c.id || ""),
+//         String(c.file_id || ""),
+//         String(c.assistant_id || ""),
+//       ];
+//       return fields.some((f) => f.includes(q));
+//     });
+//     const dir = sortDir === "asc" ? 1 : -1;
+//     list.sort((a, b) => {
+//       let va, vb;
+//       switch (sortBy) {
+//         case "name":
+//           va = (a.name || "").toLowerCase();
+//           vb = (b.name || "").toLowerCase();
+//           break;
+//         case "status":
+//           va = (a.status || "").toLowerCase();
+//           vb = (b.status || "").toLowerCase();
+//           break;
+//         case "calls_per_minute":
+//           va = a.calls_per_minute || 0;
+//           vb = b.calls_per_minute || 0;
+//           break;
+//         case "created_at":
+//         default:
+//           va = new Date(a.created_at || 0).getTime();
+//           vb = new Date(b.created_at || 0).getTime();
+//       }
+//       if (va < vb) return -1 * dir;
+//       if (va > vb) return 1 * dir;
+//       return 0;
+//     });
+//     return list;
+//   }, [campaigns, debouncedQuery, sortBy, sortDir]);
+
+//   const totalItems = filtered.length;
+//   const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+//   useEffect(() => {
+//     if (page > totalPages) setPage(totalPages);
+//   }, [page, totalPages]);
+//   const start = (page - 1) * pageSize;
+//   const end = start + pageSize;
+//   const pageItems = filtered.slice(start, end);
+
+//   // Stats
+//   const stats = useMemo(() => {
+//     const total = filtered.length;
+//     const running = filtered.filter((c) => (c.status || "").toLowerCase() === "running").length;
+//     const paused = filtered.filter((c) => (c.status || "").toLowerCase() === "paused").length;
+//     return { total, running, paused };
+//   }, [filtered]);
+
+//   /* Create: behavior */
+//   function onCreateChange(e) {
+//     const { name, value, type, checked } = e.target;
+//     setCreateForm((f) => {
+//       const next = { ...f, [name]: type === "checkbox" ? checked : value };
+//       // If file changes and mode requires leads, refresh leads
+//       if (name === "file_id") {
+//         const fileIdNum = Number(value) || "";
+//         if (fileIdNum) {
+//           loadLeadsForFile(fileIdNum);
+//         } else {
+//           setLeadsForFile([]);
+//         }
+//         // reset include/exclude selection when file changes
+//         next.include_lead_ids = [];
+//         next.exclude_lead_ids = [];
+//       }
+//       // If mode changes, reset include/exclude
+//       if (name === "selection_mode") {
+//         next.include_lead_ids = [];
+//         next.exclude_lead_ids = [];
+//       }
+//       return next;
+//     });
+//   }
+//   function toggleDOW(d) {
+//     setCreateForm((f) => {
+//       const has = f.days_of_week.includes(d);
+//       const days = has ? f.days_of_week.filter((x) => x !== d) : [...f.days_of_week, d];
+//       days.sort((a, b) => a - b);
+//       return { ...f, days_of_week: days };
+//     });
+//   }
+
+//   async function createCampaign() {
+//     if (!createForm.name || !createForm.file_id || !createForm.assistant_id) {
+//       toast.error("Name, File and Assistant are required.");
+//       return;
+//     }
+//     if (createForm.selection_mode !== "ALL" && leadsForFile.length === 0) {
+//       toast.error("No leads available for the selected file.");
+//       return;
+//     }
+//     const payload = {
+//       name: String(createForm.name).trim(),
+//       file_id: Number(createForm.file_id),
+//       assistant_id: Number(createForm.assistant_id),
+//       selection_mode: createForm.selection_mode,
+//       include_lead_ids:
+//         createForm.selection_mode === "ONLY" && createForm.include_lead_ids?.length
+//           ? createForm.include_lead_ids
+//           : null,
+//       exclude_lead_ids:
+//         createForm.selection_mode === "SKIP" && createForm.exclude_lead_ids?.length
+//           ? createForm.exclude_lead_ids
+//           : null,
+//       timezone: createForm.timezone || "America/Los_Angeles",
+//       days_of_week: createForm.days_of_week,
+//       daily_start: createForm.daily_start || "09:00",
+//       daily_end: createForm.daily_end || "18:00",
+//       start_at: fromInputDateTimeLocal(createForm.start_at),
+//       end_at: fromInputDateTimeLocal(createForm.end_at),
+//       calls_per_minute: Number(createForm.calls_per_minute) || 10,
+//       parallel_calls: Number(createForm.parallel_calls) || 2,
+//       retry_on_busy: !!createForm.retry_on_busy,
+//       busy_retry_delay_minutes: Number(createForm.busy_retry_delay_minutes) || 15,
+//       max_attempts: Number(createForm.max_attempts) || 3,
+//     };
+//     try {
+//       setCreating(true);
+//       const res = await authedFetch(EP.CREATE, {
+//         method: "POST",
+//         headers: { "Content-Type": "application/json" },
+//         body: JSON.stringify(payload),
+//       });
+//       const json = await res.json().catch(() => ({}));
+//       if (!res.ok || json?.success === false) {
+//         throw new Error(json?.detail || `HTTP ${res.status}`);
+//       }
+//       toast.success(json?.detail || "Campaign created.");
+//       setShowCreate(false);
+//       setCreateForm((f) => ({
+//         ...f,
+//         name: "",
+//         include_lead_ids: [],
+//         exclude_lead_ids: [],
+//       }));
+//       await fetchCampaigns();
+//     } catch (e) {
+//       console.error(e);
+//       toast.error(e?.message || "Create failed");
 //     } finally {
 //       setCreating(false);
 //     }
 //   }
 
-//   /* ---------------------------------------------
-//      Derived / memo
-//   ---------------------------------------------- */
-//   const selectedListObj = useMemo(() => lists.find((l) => l.id === selectedListId), [lists, selectedListId]);
-//   const selectedCount = selectedLeadIds.length;
-//   const skippedCount = Math.max(0, leads.length - selectedLeadIds.length);
+//   /* Details */
+//   async function openDetails(c) {
+//     setActiveCampaign(c);
+//     setShowDetails(true);
+//     await loadDetails(c.id);
+//   }
+//   async function loadDetails(id) {
+//     if (!id) return;
+//     try {
+//       setDetailsLoading(true);
+//       const res = await authedFetch(EP.DETAIL(id));
+//       if (!res.ok) throw new Error(`HTTP ${res.status}`);
+//       const json = await res.json();
+//       setDetails(json);
+//     } catch (e) {
+//       console.error(e);
+//       toast.error("Failed to load campaign details");
+//       setDetails(null);
+//     } finally {
+//       setDetailsLoading(false);
+//     }
+//   }
 
-//   /* ---------------------------------------------
-//      Render
-//   ---------------------------------------------- */
+//   /* Controls */
+//   async function postAction(urlBuilder, id, okMsg) {
+//     try {
+//       const res = await authedFetch(urlBuilder(id), { method: "POST" });
+//       const json = await res.json().catch(() => ({}));
+//       if (!res.ok || json?.success === false) throw new Error(json?.detail || `HTTP ${res.status}`);
+//       toast.success(json?.detail || okMsg);
+//       await fetchCampaigns();
+//       if (activeCampaign && activeCampaign.id === id) {
+//         await loadDetails(id);
+//       }
+//     } catch (e) {
+//       console.error(e);
+//       toast.error(e?.message || "Action failed");
+//     }
+//   }
+//   const doPause = (id) => postAction(EP.PAUSE, id, "Paused");
+//   const doResume = (id) => postAction(EP.RESUME, id, "Resumed");
+//   const doStop = (id) => postAction(EP.STOP, id, "Stopped");
+
+//   async function doDelete(id) {
+//     if (!confirm("Delete this campaign and its progress rows?")) return;
+//     try {
+//       const res = await authedFetch(EP.DELETE(id), { method: "DELETE" });
+//       const json = await res.json().catch(() => ({}));
+//       if (!res.ok || json?.success === false) throw new Error(json?.detail || `HTTP ${res.status}`);
+//       toast.success(json?.detail || "Deleted");
+//       setShowDetails(false);
+//       setActiveCampaign(null);
+//       await fetchCampaigns();
+//     } catch (e) {
+//       console.error(e);
+//       toast.error(e?.message || "Delete failed");
+//     }
+//   }
+
+//   async function doRunNow(id, batchSize) {
+//     try {
+//       const res = await authedFetch(EP.RUN_NOW(id), {
+//         method: "POST",
+//         headers: { "Content-Type": "application/json" },
+//         body: JSON.stringify({ batch_size: Number(batchSize) || 5 }),
+//       });
+//       const json = await res.json().catch(() => ({}));
+//       if (!res.ok || json?.success === false) throw new Error(json?.detail || `HTTP ${res.status}`);
+//       toast.success(json?.detail || "Triggered.");
+//     } catch (e) {
+//       console.error(e);
+//       toast.error(e?.message || "Run-now failed");
+//     }
+//   }
+
+//   async function updateSchedule(id, form) {
+//     const payload = {
+//       timezone: form.timezone || undefined,
+//       days_of_week: form.days_of_week?.length ? form.days_of_week : undefined,
+//       daily_start: form.daily_start || undefined,
+//       daily_end: form.daily_end || undefined,
+//       start_at: fromInputDateTimeLocal(form.start_at),
+//       end_at: fromInputDateTimeLocal(form.end_at),
+//     };
+//     try {
+//       const res = await authedFetch(EP.SCHEDULE(id), {
+//         method: "POST",
+//         headers: { "Content-Type": "application/json" },
+//         body: JSON.stringify(payload),
+//       });
+//       const json = await res.json().catch(() => ({}));
+//       if (!res.ok || json?.success === false) throw new Error(json?.detail || `HTTP ${res.status}`);
+//       toast.success(json?.detail || "Schedule updated");
+//       await fetchCampaigns();
+//       await loadDetails(id);
+//     } catch (e) {
+//       console.error(e);
+//       toast.error(e?.message || "Update failed");
+//     }
+//   }
+
+//   async function updateRetryPolicy(id, form) {
+//     const payload = {
+//       retry_on_busy: !!form.retry_on_busy,
+//       busy_retry_delay_minutes: Number(form.busy_retry_delay_minutes) || 15,
+//       max_attempts: Number(form.max_attempts) || 3,
+//     };
+//     try {
+//       const res = await authedFetch(EP.RETRY(id), {
+//         method: "POST",
+//         headers: { "Content-Type": "application/json" },
+//         body: JSON.stringify(payload),
+//       });
+//       const json = await res.json().catch(() => ({}));
+//       if (!res.ok || json?.success === false) throw new Error(json?.detail || `HTTP ${res.status}`);
+//       toast.success(json?.detail || "Retry policy updated");
+//       await loadDetails(id);
+//     } catch (e) {
+//       console.error(e);
+//       toast.error(e?.message || "Update failed");
+//     }
+//   }
+
+//   async function downloadICS(id, name = "campaign") {
+//     try {
+//       const res = await authedFetch(EP.ICS(id));
+//       if (!res.ok) throw new Error(`HTTP ${res.status}`);
+//       const blob = await res.blob();
+//       const url = URL.createObjectURL(blob);
+//       const a = document.createElement("a");
+//       a.href = url;
+//       a.download = `${name || "campaign"}.ics`;
+//       document.body.appendChild(a);
+//       a.click();
+//       a.remove();
+//       URL.revokeObjectURL(url);
+//     } catch (e) {
+//       console.error(e);
+//       toast.error("ICS download failed");
+//     }
+//   }
+
+//   /* Render */
 //   return (
-//     <div className="min-h-screen bg-gradient-to-b from-white to-blue-50">
-//       <div className="mx-auto max-w-7xl px-4 py-6 sm:py-10">
-//         {/* Header */}
-//         <div className={`rounded-2xl p-6 sm:p-8 mb-8 ${neon.header} ${neon.card} ${neon.glowBorder}`}>
-//           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-//             <h1 className="text-2xl sm:text-3xl font-bold text-blue-900 tracking-tight">
-//               Campaigns
-//             </h1>
-//             <div className="flex gap-2">
-//               <button
-//                 onClick={() => setOpenCreateList(true)}
-//                 className={`px-4 py-2 rounded-lg border border-blue-200 text-blue-700 hover:bg-blue-50 ${neon.ring}`}
+//     <div className="min-h-screen w-full text-slate-900 bg-gradient-to-b from-slate-50 via-white to-slate-50 relative">
+//       {/* Decorations */}
+//       <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
+//         <div className="absolute -top-24 -left-24 h-72 w-72 rounded-full bg-blue-400/15 blur-3xl" />
+//         <div className="absolute top-1/3 -right-20 h-72 w-72 rounded-full bg-cyan-400/20 blur-3xl animate-pulse" />
+//         <div className="absolute bottom-0 left-1/3 h-72 w-72 rounded-full bg-indigo-400/10 blur-3xl" />
+//       </div>
+
+//       {/* Header */}
+//       <header className="relative z-0 border-b border-slate-200/70 bg-white/60 backdrop-blur after:absolute after:inset-x-0 after:-bottom-[1px] after:h-[2px] after:bg-gradient-to-r after:from-transparent after:via-cyan-400/70 after:to-transparent">
+//         <div className="mx-auto max-w-[1400px] px-4 sm:px-6 lg:px-8 py-5">
+//           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+//             <div>
+//               <h1 className="text-2xl font-black tracking-tight">
+//                 <span className="bg-gradient-to-r from-blue-600 via-cyan-500 to-blue-600 bg-clip-text text-transparent">
+//                   Campaigns
+//                 </span>
+//               </h1>
+//               <p className="text-sm text-slate-600">Create, schedule, and track outbound calling campaigns.</p>
+//             </div>
+
+//             <div className="flex items-center gap-2">
+//               <ButtonGhost onClick={() => setShowCreate(true)} icon={<Plus className="h-4 w-4" />}>
+//                 New Campaign
+//               </ButtonGhost>
+//               <ButtonGhost onClick={refreshAll} icon={<RefreshCw className={cx("h-4 w-4", refreshing && "animate-spin")} />}>
+//                 Refresh
+//               </ButtonGhost>
+//             </div>
+//           </div>
+
+//           {/* Filters */}
+//           <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+//             <div className="relative sm:col-span-2">
+//               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
+//               <input
+//                 value={query}
+//                 onChange={(e) => {
+//                   setQuery(e.target.value);
+//                   setPage(1);
+//                 }}
+//                 placeholder="Search name, status, IDs…"
+//                 className="w-full rounded-2xl border border-slate-200/70 bg-white/80 pl-10 pr-3 py-2.5 text-slate-900 placeholder-slate-400 outline-none ring-1 ring-white/60 transition focus:ring-2 focus:ring-cyan-400/40 focus:border-cyan-300"
+//                 aria-label="Search campaigns"
+//               />
+//             </div>
+
+//             <div className="flex items-center justify-between sm:justify-end gap-3">
+//               <div className="text-sm text-slate-600 hidden sm:block">
+//                 Total: <span className="font-semibold text-slate-900">{totalItems}</span>
+//               </div>
+//               <select
+//                 value={pageSize}
+//                 onChange={(e) => {
+//                   setPageSize(Number(e.target.value));
+//                   setPage(1);
+//                 }}
+//                 className="rounded-2xl border border-slate-200/70 bg-white/80 px-3 py-2 text-sm outline-none ring-1 ring-white/60 focus:ring-2 focus:ring-cyan-400/40"
+//                 aria-label="Rows per page"
 //               >
-//                 Create List
-//               </button>
-//               <button
-//                 onClick={() => setStep(1)}
-//                 className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 shadow-[0_0_12px_rgba(37,99,235,0.35)] focus:ring-2 focus:ring-blue-400/30"
-//               >
-//                 <span className="inline-flex items-center gap-2"><Plus className="w-4 h-4"/>Create Campaign</span>
-//               </button>
+//                 {[10, 20, 40, 80].map((n) => (
+//                   <option key={n} value={n}>
+//                     {n} / page
+//                   </option>
+//                 ))}
+//               </select>
 //             </div>
 //           </div>
 //         </div>
+//       </header>
 
-//         {/* Campaigns table / cards */}
-//         <div className={`bg-white rounded-2xl ${neon.glowBorder} ${neon.card} overflow-hidden`}>
-//           <div className="hidden md:block overflow-x-auto">
-//             <table className="min-w-full divide-y divide-blue-100">
-//               <thead className="bg-blue-50/70">
+//       {/* Stats */}
+//       <div className="mx-auto max-w-[1400px] px-4 sm:px-6 lg:px-8 py-6">
+//         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+//           <StatCard label="Total Campaigns" value={stats.total} Icon={Users} tone="blue" />
+//           <StatCard label="Running" value={stats.running} Icon={CheckCircle2} tone="cyan" />
+//           <StatCard label="Paused" value={stats.paused} Icon={XCircle} tone="blue" />
+//         </div>
+//       </div>
+
+//       {/* Content */}
+//       <main className="mx-auto max-w-[1400px] px-4 sm:px-6 lg:px-8 pb-6">
+//         {/* Table */}
+//         <motion.div
+//           initial="hidden"
+//           animate="show"
+//           variants={stagger}
+//           className="overflow-x-auto rounded-3xl border border-slate-200/70 bg-white/70 backdrop-blur ring-1 ring-white/50"
+//         >
+//           <table className="min-w-full text-left">
+//             <thead className="bg-slate-50/80 text-slate-600 text-sm">
+//               <tr className="[&>th]:px-5 [&>th]:py-3">
+//                 <Th sortKey="created_at" sortBy={sortBy} sortDir={sortDir} onSort={(k) => setSort(k, setSortBy, setSortDir)}>
+//                   Created
+//                 </Th>
+//                 <Th sortKey="name" sortBy={sortBy} sortDir={sortDir} onSort={(k) => setSort(k, setSortBy, setSortDir)}>
+//                   Name
+//                 </Th>
+//                 <Th sortKey="status" sortBy={sortBy} sortDir={sortDir} onSort={(k) => setSort(k, setSortBy, setSortDir)}>
+//                   Status
+//                 </Th>
+//                 <th className="px-5 py-3">Window</th>
+//                 <th className="px-5 py-3">Pacing</th>
+//                 <th className="px-5 py-3">Counts</th>
+//                 <th className="px-5 py-3 text-right">Actions</th>
+//               </tr>
+//             </thead>
+//             <tbody className="divide-y divide-slate-100">
+//               {loading ? (
+//                 <RowSkeleton rows={8} cols={7} />
+//               ) : pageItems.length === 0 ? (
 //                 <tr>
-//                   <th className="px-6 py-4 text-left text-sm font-semibold text-blue-900">Name</th>
-//                   <th className="px-6 py-4 text-center text-sm font-semibold text-blue-900">Status</th>
-//                   <th className="px-6 py-4 text-center text-sm font-semibold text-blue-900">Statistics</th>
-//                   <th className="px-6 py-4 text-center text-sm font-semibold text-blue-900">Created</th>
-//                   <th className="px-6 py-4 text-center text-sm font-semibold text-blue-900">Actions</th>
+//                   <td colSpan={7} className="px-5 py-12 text-center text-slate-600">
+//                     No campaigns found. Create one to get started.
+//                   </td>
 //                 </tr>
-//               </thead>
-//               <tbody className="divide-y divide-blue-100">
-//                 {loadingCampaigns ? (
-//                   <tr><td colSpan={5} className="px-6 py-6 text-center text-gray-500">Loading campaigns…</td></tr>
-//                 ) : campaigns.length === 0 ? (
-//                   <tr><td colSpan={5} className="px-6 py-6 text-center text-gray-500">No campaigns yet.</td></tr>
-//                 ) : campaigns.map((c) => (
-//                   <tr key={c.id} className="hover:bg-blue-50/40">
-//                     <td className="px-6 py-4 text-sm text-blue-900 font-medium">{c.name}</td>
-//                     <td className="px-6 py-4">
-//                       <div className="flex justify-center">
-//                         <button
-//                           onClick={() => toggleCampaignStatus(c.id)}
-//                           className={`w-12 h-6 rounded-full p-1 transition ${c.is_active ? "bg-blue-600" : "bg-blue-200"}`}
-//                           aria-label="Toggle status"
-//                         >
-//                           <div className={`bg-white w-4 h-4 rounded-full shadow transform transition ${c.is_active ? "translate-x-6" : ""}`} />
-//                         </button>
+//               ) : (
+//                 pageItems.map((c) => (
+//                   <motion.tr key={c.id} variants={fadeUp} className="hover:bg-slate-50/70 transition-colors">
+//                     <td className="px-5 py-3 text-sm text-slate-600 whitespace-nowrap">
+//                       {c.created_at ? (
+//                         <span className="inline-flex items-center gap-1.5">
+//                           <CalendarDays className="h-4 w-4 text-slate-400" />
+//                           {fmtDT(c.created_at)}
+//                         </span>
+//                       ) : (
+//                         "Unknown"
+//                       )}
+//                     </td>
+//                     <td className="px-5 py-3 font-medium text-slate-900">{unknown(c.name)}</td>
+//                     <td className="px-5 py-3">
+//                       <StatusChip status={c.status} />
+//                     </td>
+//                     <td className="px-5 py-3 text-sm text-slate-700">
+//                       <div className="flex flex-col">
+//                         <div>
+//                           {Array.isArray(c?.window?.days) ? dowLabel(c.window.days) : c.days_of_week ? dowLabel(c.days_of_week) : "Mon–Fri"}
+//                         </div>
+//                         <div className="text-slate-500">
+//                           {c?.window ? `${c.window.start}–${c.window.end}` : `${c.daily_start || "09:00"}–${c.daily_end || "18:00"}`}
+//                         </div>
+//                         <div className="text-slate-500">{c.timezone || "Local"}</div>
 //                       </div>
 //                     </td>
-//                     <td className="px-6 py-4 text-sm">
-//                       <div className="flex items-center justify-center gap-4 text-blue-800">
-//                         <div className="flex items-center gap-1">
-//                           <Check className="w-4 h-4" /> {c.completed_calls || 0}
-//                         </div>
-//                         <div className="flex items-center gap-1">
-//                           <Phone className="w-4 h-4" /> {c.queued_calls || 0}
-//                         </div>
-//                         <div className="flex items-center gap-1">
-//                           <Mail className="w-4 h-4" /> {c.scheduled || 0}
-//                         </div>
+//                     <td className="px-5 py-3 text-sm text-slate-700">
+//                       <div className="flex items-center gap-2">
+//                         <PhoneCall className="h-4 w-4 text-slate-400" />
+//                         {c.calls_per_minute ?? c.callsPerMinute}
+//                         <span className="text-slate-500">/min</span>
+//                         <span className="mx-1">·</span>
+//                         <Clock className="h-4 w-4 text-slate-400" />
+//                         {c.parallel_calls ?? c.parallelCalls}
+//                         <span className="text-slate-500">parallel</span>
 //                       </div>
 //                     </td>
-//                     <td className="px-6 py-4 text-center text-sm text-gray-600">
-//                       {new Date(c.created_at || c.start_date || Date.now()).toLocaleDateString()}
-//                     </td>
-//                     <td className="px-6 py-4">
-//                       <div className="flex justify-center gap-2">
-//                         <button
-//                           className="text-blue-700 hover:text-blue-900"
-//                           onClick={() => {
-//                             // prefill edit
-//                             setEditingCampaign(c);
-//                             setCampaignName(c.name || "");
-//                             setAssistantId(c.assistant_id || "");
-//                             setSelectedListId(c.list_id || null);
-//                             setRetryNonPicking(!!c.call_again);
-//                             setMaxRetries(c.tries || 0);
-//                             setStartDate((c.start_date || "").slice(0,10));
-//                             setEndDate((c.end_date || "").slice(0,10));
-//                             setCallingDays(c.calling_day ? c.calling_day.split(",") : ["Mon","Tue","Wed","Thu","Fri"]);
-//                             setCallingHours({
-//                               start: c.calling_hour_start || "09:00",
-//                               end: c.calling_hour_end || "18:00"
-//                             });
-//                             setTimezone(c.timezone || "UTC");
-//                             setStep(1);
-//                           }}
-//                         >
-//                           <Edit className="w-4 h-4"/>
-//                         </button>
-//                         <button
-//                           className="text-red-600 hover:text-red-700"
-//                           onClick={() => setConfirmDelete({ open: true, id: c.id })}
-//                         >
-//                           <Trash2 className="w-4 h-4"/>
-//                         </button>
+//                     <td className="px-5 py-3 text-sm text-slate-700">
+//                       <div className="flex items-center gap-3">
+//                         <span>Total: {c?.counts?.total ?? "—"}</span>
+//                         <span>Done: {c?.counts?.completed_or_failed ?? "—"}</span>
 //                       </div>
 //                     </td>
-//                   </tr>
-//                 ))}
-//               </tbody>
-//             </table>
-//           </div>
+//                     <td className="px-5 py-3">
+//                       <div className="flex items-center justify-end gap-2">
+//                         <ButtonGhost onClick={() => openDetails(c)} icon={<Eye className="h-4 w-4" />}>
+//                           View
+//                         </ButtonGhost>
+//                         {String(c.status).toLowerCase() === "paused" ? (
+//                           <ButtonGhost onClick={() => doResume(c.id)} icon={<Play className="h-4 w-4" />}>
+//                             Resume
+//                           </ButtonGhost>
+//                         ) : (
+//                           <ButtonGhost onClick={() => doPause(c.id)} icon={<Pause className="h-4 w-4" />}>
+//                             Pause
+//                           </ButtonGhost>
+//                         )}
+//                         <ButtonGhost onClick={() => doStop(c.id)} icon={<StopSquare className="h-4 w-4" />}>
+//                           Stop
+//                         </ButtonGhost>
+//                         <ButtonGhost onClick={() => doDelete(c.id)} icon={<Trash2 className="h-4 w-4" />}>
+//                           Delete
+//                         </ButtonGhost>
+//                       </div>
+//                     </td>
+//                   </motion.tr>
+//                 ))
+//               )}
+//             </tbody>
+//           </table>
+//         </motion.div>
 
-//           {/* Mobile cards */}
-//           <div className="md:hidden divide-y divide-blue-100">
-//             {loadingCampaigns ? (
-//               <div className="p-4 text-center text-gray-500">Loading campaigns…</div>
-//             ) : campaigns.length === 0 ? (
-//               <div className="p-4 text-center text-gray-500">No campaigns yet.</div>
-//             ) : campaigns.map((c) => (
-//               <div key={c.id} className="p-4">
-//                 <div className="flex items-start justify-between">
+//         {/* Pagination */}
+//         {!loading && totalItems > 0 && (
+//           <div className="mt-6 flex flex-col items-center justify-between gap-3 sm:flex-row text-slate-700">
+//             <div className="text-sm">
+//               Showing <span className="font-semibold text-slate-900">{Math.min(end, totalItems)}</span> of {totalItems}
+//             </div>
+//             <div className="flex flex-wrap items-center gap-2">
+//               <PagerButton disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>
+//                 <ChevronLeft className="h-4 w-4" /> Prev
+//               </PagerButton>
+//               <div className="text-sm">
+//                 Page <span className="font-semibold text-slate-900">{page}</span> / {totalPages}
+//               </div>
+//               <PagerButton disabled={page >= totalPages} onClick={() => setPage((p) => Math.min(totalPages, p + 1))}>
+//                 Next <ChevronRight className="h-4 w-4" />
+//               </PagerButton>
+//             </div>
+//           </div>
+//         )}
+//       </main>
+
+//       {/* Create Drawer */}
+//       <AnimatePresence>
+//         {showCreate && (
+//           <>
+//             <motion.div className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm" variants={overlay} initial="hidden" animate="show" exit="exit" onClick={() => setShowCreate(false)} />
+//             <motion.section
+//               className="fixed inset-y-0 right-0 z-50 w-full sm:w-[560px] md:w-[820px] bg-white shadow-2xl border-l border-slate-200 flex flex-col"
+//               initial={{ x: "100%" }}
+//               animate={{ x: 0, transition: { type: "spring", stiffness: 260, damping: 28 } }}
+//               exit={{ x: "100%", transition: { duration: 0.2 } }}
+//               aria-label="Create campaign"
+//             >
+//               {/* Topbar */}
+//               <div className="sticky top-0 bg-white/90 backdrop-blur border-b border-slate-200 p-4 flex items-center justify-between">
+//                 <div className="flex items-center gap-3">
+//                   <button onClick={() => setShowCreate(false)} className="grid h-9 w-9 place-items-center rounded-xl border border-slate-200 hover:bg-slate-50" aria-label="Close">
+//                     <X className="h-5 w-5" />
+//                   </button>
 //                   <div>
-//                     <div className="text-blue-900 font-semibold">{c.name}</div>
-//                     <div className="text-xs text-gray-500">
-//                       {new Date(c.created_at || c.start_date || Date.now()).toLocaleDateString()}
-//                     </div>
+//                     <h3 className="text-lg font-bold leading-tight">New Campaign</h3>
+//                     <p className="text-xs text-slate-600">Pick your file, assistant, window and pacing.</p>
 //                   </div>
-//                   <button
-//                     onClick={() => toggleCampaignStatus(c.id)}
-//                     className={`w-12 h-6 rounded-full p-1 transition ${c.is_active ? "bg-blue-600" : "bg-blue-200"}`}
-//                     aria-label="Toggle status"
-//                   >
-//                     <div className={`bg-white w-4 h-4 rounded-full shadow transform transition ${c.is_active ? "translate-x-6" : ""}`} />
-//                   </button>
 //                 </div>
-//                 <div className="mt-3 flex items-center gap-4 text-blue-800">
-//                   <div className="flex items-center gap-1"><Check className="w-4 h-4"/>{c.completed_calls || 0}</div>
-//                   <div className="flex items-center gap-1"><Phone className="w-4 h-4"/>{c.queued_calls || 0}</div>
-//                   <div className="flex items-center gap-1"><Mail className="w-4 h-4"/>{c.scheduled || 0}</div>
-//                 </div>
-//                 <div className="mt-3 flex gap-2">
-//                   <button
-//                     className="px-3 py-1 rounded border border-blue-200 text-blue-700"
-//                     onClick={() => {
-//                       setEditingCampaign(c);
-//                       setCampaignName(c.name || "");
-//                       setAssistantId(c.assistant_id || "");
-//                       setSelectedListId(c.list_id || null);
-//                       setRetryNonPicking(!!c.call_again);
-//                       setMaxRetries(c.tries || 0);
-//                       setStartDate((c.start_date || "").slice(0,10));
-//                       setEndDate((c.end_date || "").slice(0,10));
-//                       setCallingDays(c.calling_day ? c.calling_day.split(",") : ["Mon","Tue","Wed","Thu","Fri"]);
-//                       setCallingHours({
-//                         start: c.calling_hour_start || "09:00",
-//                         end: c.calling_hour_end || "18:00"
-//                       });
-//                       setTimezone(c.timezone || "UTC");
-//                       setStep(1);
-//                     }}
-//                   >
-//                     Edit
-//                   </button>
-//                   <button
-//                     className="px-3 py-1 rounded border border-red-200 text-red-600"
-//                     onClick={() => setConfirmDelete({ open: true, id: c.id })}
-//                   >
-//                     Delete
-//                   </button>
+//                 <div className="flex items-center gap-2">
+//                   <ButtonGhost onClick={() => setShowCreate(false)}>Cancel</ButtonGhost>
+//                   <ButtonPrimary onClick={createCampaign} disabled={creating} icon={creating ? <Loader2 className="h-4 w-4 animate-spin" /> : undefined}>
+//                     {creating ? "Creating…" : "Create"}
+//                   </ButtonPrimary>
 //                 </div>
 //               </div>
+
+//               {/* Body */}
+//               <div className="flex-1 overflow-y-auto p-6">
+//                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+//                   <Field label="Name" name="name" value={createForm.name} onChange={onCreateChange} />
+//                   <label className="block">
+//                     <span className="mb-1 block text-sm font-semibold text-slate-700">Timezone (IANA)</span>
+//                     <select
+//                       name="timezone"
+//                       value={createForm.timezone}
+//                       onChange={onCreateChange}
+//                       className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-slate-900 outline-none ring-1 ring-white/70 focus:ring-2 focus:ring-cyan-400/40"
+//                     >
+//                       {TIMEZONES.map((tz) => (
+//                         <option key={tz.value} value={tz.value}>
+//                           {tz.label}
+//                         </option>
+//                       ))}
+//                     </select>
+//                   </label>
+
+//                   {/* Files dropdown */}
+//                   <label className="block">
+//                     <span className="mb-1 block text-sm font-semibold text-slate-700">File</span>
+//                     <select
+//                       name="file_id"
+//                       value={createForm.file_id}
+//                       onChange={onCreateChange}
+//                       className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-slate-900 outline-none ring-1 ring-white/70 focus:ring-2 focus:ring-cyan-400/40"
+//                     >
+//                       <option value="">Select a file…</option>
+//                       {files.map((f) => (
+//                         <option key={f.id} value={f.id}>
+//                           {f.name || `File #${f.id}`}
+//                         </option>
+//                       ))}
+//                     </select>
+//                   </label>
+
+//                   {/* Assistants dropdown */}
+//                   <label className="block">
+//                     <span className="mb-1 block text-sm font-semibold text-slate-700">Assistant</span>
+//                     <select
+//                       name="assistant_id"
+//                       value={createForm.assistant_id}
+//                       onChange={onCreateChange}
+//                       className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-slate-900 outline-none ring-1 ring-white/70 focus:ring-2 focus:ring-cyan-400/40"
+//                     >
+//                       <option value="">Select an assistant…</option>
+//                       {assistants.map((a) => (
+//                         <option key={a.id} value={a.id}>
+//                           {a.name || `Assistant #${a.id}`} {a.attached_number ? `(${a.attached_number})` : ""}
+//                         </option>
+//                       ))}
+//                     </select>
+//                   </label>
+
+//                   {/* Selection mode */}
+//                   <div className="md:col-span-2">
+//                     <label className="mb-1 block text-sm font-semibold text-slate-700">Selection Mode</label>
+//                     <div className="flex flex-wrap gap-2">
+//                       {["ALL", "ONLY", "SKIP"].map((m) => (
+//                         <label
+//                           key={m}
+//                           className={cx(
+//                             "inline-flex items-center gap-2 rounded-2xl border px-3.5 py-2 cursor-pointer",
+//                             createForm.selection_mode === m ? "border-cyan-400 bg-cyan-50" : "border-slate-200 bg-white"
+//                           )}
+//                         >
+//                           <input type="radio" className="hidden" name="selection_mode" value={m} checked={createForm.selection_mode === m} onChange={onCreateChange} />
+//                           <span className="text-sm">{m}</span>
+//                         </label>
+//                       ))}
+//                     </div>
+//                   </div>
+
+//                   {/* Lead selector for ONLY/SKIP */}
+//                   {createForm.selection_mode !== "ALL" && (
+//                     <div className="md:col-span-2 rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
+//                       <div className="font-semibold mb-3 flex items-center gap-2">
+//                         <Users className="h-4 w-4" /> {createForm.selection_mode === "ONLY" ? "Include specific leads" : "Skip specific leads"}
+//                       </div>
+
+//                       {!createForm.file_id ? (
+//                         <div className="text-sm text-slate-600">Please choose a File first to load leads.</div>
+//                       ) : leadsLoading ? (
+//                         <div className="text-sm text-slate-600">Loading leads…</div>
+//                       ) : leadsForFile.length === 0 ? (
+//                         <div className="text-sm text-slate-600">No leads found in this file.</div>
+//                       ) : (
+//                         <>
+//                           <div className="mb-2">
+//                             <input
+//                               value={leadSearch}
+//                               onChange={(e) => setLeadSearch(e.target.value)}
+//                               placeholder="Search leads by name, email, or mobile…"
+//                               className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-cyan-400/40"
+//                             />
+//                           </div>
+//                           <LeadMultiSelect
+//                             leads={leadsForFile}
+//                             mode={createForm.selection_mode}
+//                             search={leadSearch}
+//                             selectedIds={
+//                               createForm.selection_mode === "ONLY"
+//                                 ? createForm.include_lead_ids
+//                                 : createForm.exclude_lead_ids
+//                             }
+//                             onChange={(ids) =>
+//                               setCreateForm((f) => ({
+//                                 ...f,
+//                                 include_lead_ids: f.selection_mode === "ONLY" ? ids : [],
+//                                 exclude_lead_ids: f.selection_mode === "SKIP" ? ids : [],
+//                               }))
+//                             }
+//                           />
+//                         </>
+//                       )}
+//                     </div>
+//                   )}
+
+//                   {/* Window */}
+//                   <div className="md:col-span-2 rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
+//                     <div className="font-semibold mb-3 flex items-center gap-2">
+//                       <Settings className="h-4 w-4" /> Calling Window
+//                     </div>
+//                     <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+//                       <div className="md:col-span-2">
+//                         <div className="text-sm text-slate-700 mb-2">Days of week</div>
+//                         <div className="flex flex-wrap gap-2">
+//                           {[0, 1, 2, 3, 4, 5, 6].map((d) => (
+//                             <button
+//                               key={d}
+//                               type="button"
+//                               onClick={() => toggleDOW(d)}
+//                               className={cx(
+//                                 "px-3 py-1.5 rounded-xl border text-sm",
+//                                 createForm.days_of_week.includes(d) ? "border-blue-400 bg-blue-50 text-blue-700" : "border-slate-200 bg-white text-slate-700"
+//                               )}
+//                             >
+//                               {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"][d]}
+//                             </button>
+//                           ))}
+//                         </div>
+//                       </div>
+//                       <div>
+//                         <Field label="Daily start" name="daily_start" value={createForm.daily_start} onChange={onCreateChange} placeholder="HH:MM" />
+//                         <div className="h-2" />
+//                         <Field label="Daily end" name="daily_end" value={createForm.daily_end} onChange={onCreateChange} placeholder="HH:MM" />
+//                       </div>
+//                     </div>
+//                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
+//                       <Field label="Start at (optional)" name="start_at" type="datetime-local" value={createForm.start_at} onChange={onCreateChange} />
+//                       <Field label="End at (optional)" name="end_at" type="datetime-local" value={createForm.end_at} onChange={onCreateChange} />
+//                     </div>
+//                   </div>
+
+//                   {/* Pacing & retry */}
+//                   <Field label="Calls per minute" name="calls_per_minute" value={createForm.calls_per_minute} onChange={onCreateChange} />
+//                   <Field label="Parallel calls" name="parallel_calls" value={createForm.parallel_calls} onChange={onCreateChange} />
+
+//                   <div className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4 md:col-span-2">
+//                     <div className="font-semibold mb-3 flex items-center gap-2">
+//                       <Rocket className="h-4 w-4" /> Retry Policy
+//                     </div>
+//                     <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+//                       <label className="inline-flex items-center gap-2">
+//                         <input type="checkbox" name="retry_on_busy" checked={!!createForm.retry_on_busy} onChange={onCreateChange} />
+//                         <span className="text-sm text-slate-800">Retry on busy/no-answer</span>
+//                       </label>
+//                       <Field label="Busy retry delay (min)" name="busy_retry_delay_minutes" value={createForm.busy_retry_delay_minutes} onChange={onCreateChange} />
+//                       <Field label="Max attempts" name="max_attempts" value={createForm.max_attempts} onChange={onCreateChange} />
+//                     </div>
+//                   </div>
+//                 </div>
+//               </div>
+//             </motion.section>
+//           </>
+//         )}
+//       </AnimatePresence>
+
+//       {/* Details Drawer */}
+//       <AnimatePresence>
+//         {showDetails && (
+//           <>
+//             <motion.div className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm" variants={overlay} initial="hidden" animate="show" exit="exit" onClick={() => setShowDetails(false)} />
+//             <motion.section
+//               className="fixed inset-y-0 right-0 z-50 w-full sm:w-[620px] md:w-[880px] bg-white shadow-2xl border-l border-slate-200 flex flex-col"
+//               initial={{ x: "100%" }}
+//               animate={{ x: 0, transition: { type: "spring", stiffness: 260, damping: 28 } }}
+//               exit={{ x: "100%", transition: { duration: 0.2 } }}
+//               aria-label="Campaign details"
+//             >
+//               {/* Topbar */}
+//               <div className="sticky top-0 bg-white/90 backdrop-blur border-b border-slate-200 p-4 flex items-center justify-between">
+//                 <div className="flex items-center gap-3">
+//                   <button onClick={() => setShowDetails(false)} className="grid h-9 w-9 place-items-center rounded-xl border border-slate-200 hover:bg-slate-50" aria-label="Close">
+//                     <X className="h-5 w-5" />
+//                   </button>
+//                   <div>
+//                     <h3 className="text-lg font-bold leading-tight">Campaign #{activeCampaign?.id}</h3>
+//                     <p className="text-xs text-slate-600">{unknown(activeCampaign?.name)}</p>
+//                   </div>
+//                 </div>
+//                 <div className="flex items-center gap-2">
+//                   <ButtonGhost onClick={() => downloadICS(activeCampaign.id, activeCampaign?.name)} icon={<Download className="h-4 w-4" />}>
+//                     ICS
+//                   </ButtonGhost>
+//                 </div>
+//               </div>
+
+//               {/* Body */}
+//               <div className="flex-1 overflow-y-auto p-6">
+//                 {/* Info strip */}
+//                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+//                   <div className="rounded-2xl border border-slate-200 bg-white p-4">
+//                     <div className="text-xs uppercase tracking-wide text-slate-500 mb-1">Status</div>
+//                     <StatusChip status={details?.status || activeCampaign?.status} />
+//                   </div>
+//                   <div className="rounded-2xl border border-slate-200 bg-white p-4">
+//                     <div className="text-xs uppercase tracking-wide text-slate-500 mb-1">Window</div>
+//                     <div className="text-sm text-slate-800">
+//                       {details ? dowLabel(details.days_of_week) : dowLabel(activeCampaign?.days_of_week)} ·{" "}
+//                       {(details?.daily_start || activeCampaign?.daily_start || "09:00") + "–" + (details?.daily_end || activeCampaign?.daily_end || "18:00")}
+//                       <div className="text-slate-500">{details?.timezone || activeCampaign?.timezone || "Local"}</div>
+//                     </div>
+//                   </div>
+//                   <div className="rounded-2xl border border-slate-200 bg-white p-4">
+//                     <div className="text-xs uppercase tracking-wide text-slate-500 mb-1">Counts</div>
+//                     <div className="text-sm text-slate-800">
+//                       Total: {details?.totals?.total ?? activeCampaign?.counts?.total ?? "—"} · Done:{" "}
+//                       {details?.totals?.done ?? activeCampaign?.counts?.completed_or_failed ?? "—"}
+//                     </div>
+//                   </div>
+//                 </div>
+
+//                 {/* Controls */}
+//                 <div className="mt-4 flex flex-wrap items-center gap-2">
+//                   {String(details?.status || activeCampaign?.status).toLowerCase() === "paused" ? (
+//                     <ButtonPrimary onClick={() => doResume(activeCampaign.id)} icon={<Play className="h-4 w-4" />}>
+//                       Resume
+//                     </ButtonPrimary>
+//                   ) : (
+//                     <ButtonPrimary onClick={() => doPause(activeCampaign.id)} icon={<Pause className="h-4 w-4" />}>
+//                       Pause
+//                     </ButtonPrimary>
+//                   )}
+//                   <ButtonGhost onClick={() => doStop(activeCampaign.id)} icon={<StopSquare className="h-4 w-4" />}>
+//                     Stop
+//                   </ButtonGhost>
+//                   <ButtonGhost onClick={() => doDelete(activeCampaign.id)} icon={<Trash2 className="h-4 w-4" />}>
+//                     Delete
+//                   </ButtonGhost>
+//                 </div>
+
+//                 {/* Schedule + Retry forms */}
+//                 <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+//                   <ScheduleForm details={details} onSubmit={(form) => updateSchedule(activeCampaign.id, form)} loading={detailsLoading} />
+//                   <RetryForm details={details} onSubmit={(form) => updateRetryPolicy(activeCampaign.id, form)} loading={detailsLoading} />
+//                 </div>
+
+//                 {/* Run now */}
+//                 <RunNowCard onRun={(n) => doRunNow(activeCampaign.id, n)} />
+//               </div>
+//             </motion.section>
+//           </>
+//         )}
+//       </AnimatePresence>
+//     </div>
+//   );
+// }
+
+// /* ─────────────────────────── Subcomponents ─────────────────────────── */
+
+// function RunNowCard({ onRun }) {
+//   const [n, setN] = useState(5);
+//   return (
+//     <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-4">
+//       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+//         <div className="font-semibold text-slate-800 flex items-center gap-2">
+//           <Rocket className="h-4 w-4" />
+//           Run Now
+//         </div>
+//         <div className="flex items-center gap-2">
+//           <input
+//             type="number"
+//             min={1}
+//             className="w-24 rounded-xl border border-slate-200 px-3 py-2 text-sm"
+//             value={n}
+//             onChange={(e) => setN(Number(e.target.value) || 5)}
+//           />
+//           <ButtonPrimary onClick={() => onRun(n)} icon={<Play className="h-4 w-4" />}>
+//             Trigger
+//           </ButtonPrimary>
+//         </div>
+//       </div>
+//       <p className="text-sm text-slate-600 mt-2">Immediately place a small batch of calls (ignores schedule window).</p>
+//     </div>
+//   );
+// }
+
+// function ScheduleForm({ details, onSubmit, loading }) {
+//   const [form, setForm] = useState({
+//     timezone: details?.timezone || "America/Los_Angeles",
+//     days_of_week: details?.days_of_week || [0, 1, 2, 3, 4],
+//     daily_start: details?.daily_start || "09:00",
+//     daily_end: details?.daily_end || "18:00",
+//     start_at: toInputDateTimeLocal(details?.start_at),
+//     end_at: toInputDateTimeLocal(details?.end_at),
+//   });
+//   useEffect(() => {
+//     setForm({
+//       timezone: details?.timezone || "America/Los_Angeles",
+//       days_of_week: details?.days_of_week || [0, 1, 2, 3, 4],
+//       daily_start: details?.daily_start || "09:00",
+//       daily_end: details?.daily_end || "18:00",
+//       start_at: toInputDateTimeLocal(details?.start_at),
+//       end_at: toInputDateTimeLocal(details?.end_at),
+//     });
+//   }, [details]);
+
+//   function onChange(e) {
+//     const { name, value } = e.target;
+//     setForm((f) => ({ ...f, [name]: value }));
+//   }
+//   function toggleDOW(d) {
+//     setForm((f) => {
+//       const has = f.days_of_week.includes(d);
+//       const days = has ? f.days_of_week.filter((x) => x !== d) : [...f.days_of_week, d];
+//       days.sort((a, b) => a - b);
+//       return { ...f, days_of_week: days };
+//     });
+//   }
+
+//   return (
+//     <div className="rounded-2xl border border-slate-200 bg-white p-4">
+//       <div className="font-semibold text-slate-800 mb-3 flex items-center gap-2">
+//         <Settings className="h-4 w-4" />
+//         Schedule
+//       </div>
+//       <div className="grid grid-cols-1 gap-3">
+//         <label className="block">
+//           <span className="mb-1 block text-sm font-semibold text-slate-700">Timezone (IANA)</span>
+//           <select
+//             name="timezone"
+//             value={form.timezone}
+//             onChange={onChange}
+//             className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-slate-900 outline-none ring-1 ring-white/70 focus:ring-2 focus:ring-cyan-400/40"
+//           >
+//             {TIMEZONES.map((tz) => (
+//               <option key={tz.value} value={tz.value}>
+//                 {tz.label}
+//               </option>
+//             ))}
+//           </select>
+//         </label>
+//         <div>
+//           <div className="text-sm text-slate-700 mb-2">Days of week</div>
+//           <div className="flex flex-wrap gap-2">
+//             {[0, 1, 2, 3, 4, 5, 6].map((d) => (
+//               <button
+//                 key={d}
+//                 type="button"
+//                 onClick={() => toggleDOW(d)}
+//                 className={cx(
+//                   "px-3 py-1.5 rounded-xl border text-sm",
+//                   form.days_of_week.includes(d) ? "border-blue-400 bg-blue-50 text-blue-700" : "border-slate-200 bg-white text-slate-700"
+//                 )}
+//               >
+//                 {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"][d]}
+//               </button>
 //             ))}
 //           </div>
 //         </div>
+//         <div className="grid grid-cols-2 gap-3">
+//           <Field label="Daily start" name="daily_start" value={form.daily_start} onChange={onChange} placeholder="HH:MM" />
+//           <Field label="Daily end" name="daily_end" value={form.daily_end} onChange={onChange} placeholder="HH:MM" />
+//         </div>
+//         <div className="grid grid-cols-2 gap-3">
+//           <Field label="Start at (optional)" name="start_at" type="datetime-local" value={form.start_at} onChange={onChange} />
+//           <Field label="End at (optional)" name="end_at" type="datetime-local" value={form.end_at} onChange={onChange} />
+//         </div>
+//         <div className="flex justify-end">
+//           <ButtonPrimary onClick={() => onSubmit(form)} disabled={loading}>
+//             Save Schedule
+//           </ButtonPrimary>
+//         </div>
+//       </div>
+//     </div>
+//   );
+// }
 
-//         {/* Create/Edit Wizard */}
-//         {step >= 1 && step <= 6 && (
-//           <Modal open wide onClose={resetWizard}>
-//             <div className="space-y-6">
-//               {/* Steps indicator */}
-//               <div className="flex items-center justify-between">
-//                 <div className="text-lg font-semibold text-blue-900">
-//                   {editingCampaign ? "Edit Campaign" : "Create Campaign"}
+// function RetryForm({ details, onSubmit, loading }) {
+//   const [form, setForm] = useState({
+//     retry_on_busy: details?.retry_on_busy ?? true,
+//     busy_retry_delay_minutes: details?.busy_retry_delay_minutes ?? 15,
+//     max_attempts: details?.max_attempts ?? 3,
+//   });
+//   useEffect(() => {
+//     setForm({
+//       retry_on_busy: details?.retry_on_busy ?? true,
+//       busy_retry_delay_minutes: details?.busy_retry_delay_minutes ?? 15,
+//       max_attempts: details?.max_attempts ?? 3,
+//     });
+//   }, [details]);
+
+//   function onChange(e) {
+//     const { name, value, type, checked } = e.target;
+//     setForm((f) => ({ ...f, [name]: type === "checkbox" ? checked : value }));
+//   }
+
+//   return (
+//     <div className="rounded-2xl border border-slate-200 bg-white p-4">
+//       <div className="font-semibold text-slate-800 mb-3 flex items-center gap-2">
+//         <Rocket className="h-4 w-4" />
+//         Retry Policy
+//       </div>
+//       <div className="grid grid-cols-1 gap-3">
+//         <label className="inline-flex items-center gap-2">
+//           <input type="checkbox" name="retry_on_busy" checked={!!form.retry_on_busy} onChange={onChange} />
+//           <span className="text-sm text-slate-800">Retry on busy / no-answer</span>
+//         </label>
+//         <Field label="Busy retry delay (min)" name="busy_retry_delay_minutes" value={form.busy_retry_delay_minutes} onChange={onChange} />
+//         <Field label="Max attempts" name="max_attempts" value={form.max_attempts} onChange={onChange} />
+//         <div className="flex justify-end">
+//           <ButtonPrimary onClick={() => onSubmit(form)} disabled={loading}>
+//             Save Retry Policy
+//           </ButtonPrimary>
+//         </div>
+//       </div>
+//     </div>
+//   );
+// }
+
+// /* Lead MultiSelect for ONLY/SKIP */
+// function LeadMultiSelect({ leads, mode, search, selectedIds, onChange }) {
+//   const [page, setPage] = useState(1);
+//   const pageSize = 12;
+
+//   const filtered = useMemo(() => {
+//     const q = (search || "").toLowerCase().trim();
+//     if (!q) return leads;
+//     return leads.filter((l) => {
+//       const name = `${l.first_name || ""} ${l.last_name || ""}`.toLowerCase();
+//       return (
+//         name.includes(q) ||
+//         (l.email || "").toLowerCase().includes(q) ||
+//         (l.mobile || "").toLowerCase().includes(q)
+//       );
+//     });
+//   }, [leads, search]);
+
+//   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+//   useEffect(() => {
+//     if (page > totalPages) setPage(totalPages);
+//   }, [page, totalPages]);
+
+//   const start = (page - 1) * pageSize;
+//   const end = start + pageSize;
+//   const slice = filtered.slice(start, end);
+
+//   function toggle(id) {
+//     const has = selectedIds.includes(id);
+//     if (has) onChange(selectedIds.filter((x) => x !== id));
+//     else onChange([...selectedIds, id]);
+//   }
+
+//   return (
+//     <div className="rounded-xl border border-slate-200 bg-white">
+//       <div className="max-h-72 overflow-y-auto divide-y divide-slate-100">
+//         {slice.length === 0 ? (
+//           <div className="p-4 text-sm text-slate-600">No leads match your search.</div>
+//         ) : (
+//           slice.map((l) => {
+//             const nameFull = `${l.first_name || ""} ${l.last_name || ""}`.trim() || "Unknown";
+//             return (
+//               <label key={l.id} className="flex items-center gap-3 p-3 hover:bg-slate-50 cursor-pointer">
+//                 <input type="checkbox" checked={selectedIds.includes(l.id)} onChange={() => toggle(l.id)} />
+//                 <div className="min-w-0">
+//                   <div className="font-medium text-slate-900 text-sm">{nameFull}</div>
+//                   <div className="text-xs text-slate-600 break-all">
+//                     {(l.email || "—") + " · " + (l.mobile || "—")}
+//                   </div>
 //                 </div>
-//                 <div className="text-sm text-gray-500">Step {step} / 6</div>
+//                 {l.dnc ? <Chip tone="red">DNC</Chip> : <Chip tone="green">OK</Chip>}
+//               </label>
+//             );
+//           })
+//         )}
+//       </div>
+//       {filtered.length > pageSize && (
+//         <div className="flex items-center justify-between p-2">
+//           <span className="text-xs text-slate-600">
+//             Showing {Math.min(end, filtered.length)} of {filtered.length}
+//           </span>
+//           <div className="flex items-center gap-2">
+//             <PagerButton disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>
+//               <ChevronLeft className="h-3.5 w-3.5" /> Prev
+//             </PagerButton>
+//             <span className="text-xs text-slate-700">
+//               {page}/{totalPages}
+//             </span>
+//             <PagerButton disabled={page >= totalPages} onClick={() => setPage((p) => Math.min(totalPages, p + 1))}>
+//               Next <ChevronRight className="h-3.5 w-3.5" />
+//             </PagerButton>
+//           </div>
+//         </div>
+//       )}
+//       <div className="p-3 border-t border-slate-200 text-xs text-slate-700">
+//         Mode: <strong>{mode}</strong> · Selected: <strong>{selectedIds.length}</strong>
+//       </div>
+//     </div>
+//   );
+// }
+
+// /* Helpers / small UI bits */
+// function dowLabel(days) {
+//   const map = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+//   const set = new Set(Array.isArray(days) ? days : []);
+//   if (set.size === 5 && [0, 1, 2, 3, 4].every((d) => set.has(d))) return "Mon–Fri";
+//   if (set.size === 7) return "Every day";
+//   return Array.from(set)
+//     .sort((a, b) => a - b)
+//     .map((d) => map[d] || "?")
+//     .join(", ");
+// }
+
+// function setSort(nextKey, setKey, setDir) {
+//   setKey((prevKey) => {
+//     if (prevKey === nextKey) {
+//       setDir((d) => (d === "asc" ? "desc" : "asc"));
+//       return prevKey;
+//     } else {
+//       setDir(nextKey === "created_at" ? "desc" : "asc");
+//       return nextKey;
+//     }
+//   });
+// }
+
+// function ButtonPrimary({ children, onClick, disabled, icon, type = "button" }) {
+//   return (
+//     <motion.button
+//       whileTap={!disabled ? { scale: 0.98 } : undefined}
+//       type={type}
+//       onClick={onClick}
+//       disabled={disabled}
+//       className={cx(
+//         "inline-flex items-center gap-2 rounded-2xl px-3.5 py-2 font-semibold text-white transition",
+//         "bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 active:from-blue-700 active:to-cyan-700",
+//         "shadow-[0_8px_24px_-12px_rgba(37,99,235,0.55)]",
+//         "disabled:opacity-60 disabled:cursor-not-allowed"
+//       )}
+//     >
+//       {icon}
+//       <span className="whitespace-nowrap">{children}</span>
+//     </motion.button>
+//   );
+// }
+// function ButtonGhost({ children, onClick, icon, type = "button" }) {
+//   return (
+//     <motion.button
+//       whileTap={{ scale: 0.98 }}
+//       type={type}
+//       onClick={onClick}
+//       className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3.5 py-2 font-medium text-slate-800 ring-1 ring-white/70 transition hover:bg-slate-50"
+//     >
+//       {icon}
+//       <span className="whitespace-nowrap">{children}</span>
+//     </motion.button>
+//   );
+// }
+// function PagerButton({ children, disabled, onClick }) {
+//   return (
+//     <motion.button
+//       whileTap={!disabled ? { scale: 0.98 } : undefined}
+//       disabled={disabled}
+//       onClick={onClick}
+//       className={cx(
+//         "inline-flex items-center gap-2 rounded-2xl border px-3.5 py-2 text-sm transition",
+//         disabled ? "cursor-not-allowed border-slate-200 text-slate-400 bg-white" : "border-slate-300 bg-white text-slate-800 hover:bg-slate-50"
+//       )}
+//     >
+//       {children}
+//     </motion.button>
+//   );
+// }
+// function Th({ children, sortKey, sortBy, sortDir, onSort }) {
+//   const active = sortBy === sortKey;
+//   return (
+//     <th className={cx("px-5 py-3 font-semibold select-none cursor-pointer", active && "text-slate-900")} onClick={() => onSort(sortKey)} title="Sort">
+//       <span className="inline-flex items-center gap-1">
+//         {children}
+//         <span className={cx("text-xs", active ? "opacity-100" : "opacity-20")}>{active ? (sortDir === "asc" ? "▲" : "▼") : "▲"}</span>
+//       </span>
+//     </th>
+//   );
+// }
+// function RowSkeleton({ rows = 6, cols = 6 }) {
+//   return (
+//     <>
+//       {Array.from({ length: rows }).map((_, r) => (
+//         <tr key={r} className="animate-pulse">
+//           {Array.from({ length: cols }).map((__, c) => (
+//             <td key={c} className="px-5 py-3">
+//               <div className="h-4 w-28 rounded bg-slate-100" />
+//             </td>
+//           ))}
+//         </tr>
+//       ))}
+//     </>
+//   );
+// }
+// function Field({ label, name, value, onChange, type = "text", placeholder, className }) {
+//   return (
+//     <label className={cx("block", className)}>
+//       <span className="mb-1 block text-sm font-semibold text-slate-700">{label}</span>
+//       <input
+//         type={type}
+//         name={name}
+//         value={value ?? ""}
+//         onChange={onChange}
+//         placeholder={placeholder}
+//         className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-slate-900 placeholder-slate-400 outline-none ring-1 ring-white/70 focus:ring-2 focus:ring-cyan-400/40 focus:border-cyan-300"
+//       />
+//     </label>
+//   );
+// }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+// "use client";
+
+// import React, { useEffect, useMemo, useRef, useState } from "react";
+// import { toast } from "react-toastify";
+// import {
+//   Search,
+//   RefreshCw,
+//   X,
+//   Loader2,
+//   Users,
+//   CheckCircle2,
+//   XCircle,
+//   Plus,
+//   CalendarDays,
+//   PhoneCall,
+//   Clock,
+//   Play,
+//   Pause,
+//   Square as StopSquare,
+//   Trash2,
+//   Eye,
+//   Download,
+//   Settings,
+//   Rocket,
+//   ChevronLeft,
+//   ChevronRight,
+// } from "lucide-react";
+// import { motion, AnimatePresence } from "framer-motion";
+
+// /* ──────────────────────────────────────────────────────────────────────────
+//  * Config
+//  * ────────────────────────────────────────────────────────────────────────── */
+// const API_URL = import.meta.env?.VITE_API_URL || "http://localhost:8000";
+// const API_PREFIX = import.meta.env?.VITE_API_PREFIX || "/api";
+
+// // Campaign endpoints (aligned to your FastAPI router)
+// const CAMPAIGNS_BASE = `${API_URL}${API_PREFIX}/campaigns`;
+// const EP = {
+//   LIST: `${CAMPAIGNS_BASE}/campaigns`,
+//   CREATE: `${CAMPAIGNS_BASE}/campaigns`,
+//   DETAIL: (id) => `${CAMPAIGNS_BASE}/campaigns/${id}`,
+//   SCHEDULE: (id) => `${CAMPAIGNS_BASE}/campaigns/${id}/schedule`,
+//   RETRY: (id) => `${CAMPAIGNS_BASE}/campaigns/${id}/retry-policy`,
+//   PAUSE: (id) => `${CAMPAIGNS_BASE}/campaigns/${id}/pause`,
+//   RESUME: (id) => `${CAMPAIGNS_BASE}/campaigns/${id}/resume`,
+//   STOP: (id) => `${CAMPAIGNS_BASE}/campaigns/${id}/stop`,
+//   RUN_NOW: (id) => `${CAMPAIGNS_BASE}/campaigns/${id}/run-now`,
+//   ICS: (id) => `${CAMPAIGNS_BASE}/campaigns/${id}/calendar.ics`,
+//   DELETE: (id) => `${CAMPAIGNS_BASE}/campaigns/${id}`,
+// };
+
+// // Resource endpoints
+// const RESOURCES = {
+//   FILES: `${API_URL}${API_PREFIX}/files`, // should return [{id, name, ...}]
+//   // Assistants MUST be fetched from /api/get-assistants (per your request)
+//   ASSISTANTS: `${API_URL}${API_PREFIX}/get-assistants`,
+//   LEADS: (fileId) => `${API_URL}${API_PREFIX}/leads${fileId ? `?file_id=${fileId}` : ""}`, // [{id, first_name, last_name, email, mobile, file_id, dnc}]
+// };
+
+// /* Utilities */
+// function cx(...arr) {
+//   return arr.filter(Boolean).join(" ");
+// }
+// const unknown = (v) => {
+//   if (v === undefined || v === null) return "Unknown";
+//   const s = String(v).trim();
+//   return s === "" || s.toLowerCase() === "null" || s.toLowerCase() === "undefined" ? "Unknown" : s;
+// };
+// function useDebounce(value, delay = 250) {
+//   const [debounced, setDebounced] = useState(value);
+//   useEffect(() => {
+//     const t = setTimeout(() => setDebounced(value), delay);
+//     return () => clearTimeout(t);
+//   }, [value, delay]);
+//   return debounced;
+// }
+// function fmtDT(d) {
+//   try {
+//     const dt = new Date(d);
+//     if (isNaN(dt.getTime())) return "Unknown";
+//     return dt.toLocaleString();
+//   } catch {
+//     return "Unknown";
+//   }
+// }
+// function toInputDateTimeLocal(value) {
+//   if (!value) return "";
+//   const d = new Date(value);
+//   if (isNaN(d.getTime())) return "";
+//   const yyyy = d.getFullYear();
+//   const mm = String(d.getMonth() + 1).padStart(2, "0");
+//   const dd = String(d.getDate()).padStart(2, "0");
+//   const hh = String(d.getHours()).padStart(2, "0");
+//   const mi = String(d.getMinutes()).padStart(2, "0");
+//   return `${yyyy}-${mm}-${dd}T${hh}:${mi}`;
+// }
+// function fromInputDateTimeLocal(s) {
+//   if (!s) return null;
+//   const d = new Date(s);
+//   return isNaN(d.getTime()) ? null : d.toISOString();
+// }
+
+// /* Motion variants */
+// const fadeUp = {
+//   hidden: { opacity: 0, y: 8 },
+//   show: { opacity: 1, y: 0, transition: { duration: 0.24, ease: "easeOut" } },
+// };
+// const stagger = { show: { transition: { staggerChildren: 0.05 } } };
+// const overlay = {
+//   hidden: { opacity: 0 },
+//   show: { opacity: 1, transition: { duration: 0.18 } },
+//   exit: { opacity: 0, transition: { duration: 0.12 } },
+// };
+
+// /* Pill chip */
+// function Chip({ children, tone = "slate" }) {
+//   const tones = {
+//     slate: "bg-slate-100 text-slate-700 ring-slate-200",
+//     green: "bg-emerald-100 text-emerald-700 ring-emerald-200",
+//     red: "bg-rose-100 text-rose-700 ring-rose-200",
+//     blue: "bg-blue-100 text-blue-700 ring-blue-200",
+//     orange: "bg-orange-100 text-orange-700 ring-orange-200",
+//     purple: "bg-purple-100 text-purple-700 ring-purple-200",
+//   };
+//   return (
+//     <span className={cx("inline-flex items-center rounded-full px-2.5 py-1 text-xs ring-1", tones[tone] || tones.slate)}>
+//       {children}
+//     </span>
+//   );
+// }
+
+// /* Stat card */
+// function StatCard({ label, value, Icon, tone = "blue" }) {
+//   const ring = tone === "blue" ? "ring-blue-200/60" : tone === "cyan" ? "ring-cyan-200/60" : "ring-slate-200/60";
+//   const bg =
+//     tone === "blue"
+//       ? "from-blue-600 to-cyan-500"
+//       : tone === "cyan"
+//       ? "from-cyan-500 to-blue-600"
+//       : "from-slate-500 to-slate-700";
+//   return (
+//     <motion.div initial={{ y: 8, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="relative rounded-3xl border border-slate-200 bg-white p-5 shadow-xl">
+//       <div className="relative z-10 flex items-center gap-3">
+//         <div className={`flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br ${bg} text-white shadow-inner ring-1 ${ring}`}>
+//           <Icon className="h-7 w-7" />
+//         </div>
+//         <div>
+//           <div className="text-xs uppercase tracking-wider text-slate-500">{label}</div>
+//           <div className="text-2xl font-black text-slate-900">{value}</div>
+//         </div>
+//       </div>
+//     </motion.div>
+//   );
+// }
+
+// /* Status chip */
+// function StatusChip({ status }) {
+//   const s = (status || "").toLowerCase();
+//   if (s === "scheduled") return <Chip tone="blue">Scheduled</Chip>;
+//   if (s === "running") return <Chip tone="green">Running</Chip>;
+//   if (s === "paused") return <Chip tone="orange">Paused</Chip>;
+//   if (s === "stopped") return <Chip tone="red">Stopped</Chip>;
+//   if (s === "completed") return <Chip tone="purple">Completed</Chip>;
+//   if (s === "draft") return <Chip tone="slate">Draft</Chip>;
+//   return <Chip tone="slate">{unknown(status)}</Chip>;
+// }
+
+// /* Timezones (trimmed set) */
+// const TIMEZONES = [
+//   { value: "UTC", label: "UTC" },
+//   { value: "America/New_York", label: "America/New_York" },
+//   { value: "America/Chicago", label: "America/Chicago" },
+//   { value: "America/Denver", label: "America/Denver" },
+//   { value: "America/Los_Angeles", label: "America/Los_Angeles" },
+//   { value: "America/Phoenix", label: "America/Phoenix" },
+//   { value: "Europe/London", label: "Europe/London" },
+//   { value: "Europe/Berlin", label: "Europe/Berlin" },
+//   { value: "Europe/Paris", label: "Europe/Paris" },
+//   { value: "Asia/Kolkata", label: "Asia/Kolkata" },
+//   { value: "Asia/Singapore", label: "Asia/Singapore" },
+//   { value: "Asia/Tokyo", label: "Asia/Tokyo" },
+//   { value: "Asia/Dubai", label: "Asia/Dubai" },
+//   { value: "Australia/Sydney", label: "Australia/Sydney" },
+// ];
+
+// /* ──────────────────────────────────────────────────────────────────────────
+//  * Page: Campaigns
+//  * ────────────────────────────────────────────────────────────────────────── */
+// export default function CampaignsPage() {
+//   const token = useRef(localStorage.getItem("token") || null);
+
+//   // Data & UI state
+//   const [campaigns, setCampaigns] = useState([]);
+//   const [loading, setLoading] = useState(true);
+//   const [refreshing, setRefreshing] = useState(false);
+
+//   const [files, setFiles] = useState([]);
+
+//   const [assistants, setAssistants] = useState([]);
+//   const [leadsForFile, setLeadsForFile] = useState([]);
+//   const [leadsLoading, setLeadsLoading] = useState(false);
+
+//   const [query, setQuery] = useState("");
+//   const debouncedQuery = useDebounce(query, 250);
+
+//   // Sorting & paging
+//   const [sortBy, setSortBy] = useState("created_at");
+//   const [sortDir, setSortDir] = useState("desc");
+//   const [page, setPage] = useState(1);
+//   const [pageSize, setPageSize] = useState(10);
+
+//   // Create drawer
+//   const [showCreate, setShowCreate] = useState(false);
+//   const [creating, setCreating] = useState(false);
+//   const [createForm, setCreateForm] = useState({
+//     name: "",
+//     file_id: "",
+//     assistant_id: "",
+//     selection_mode: "ALL",
+//     include_lead_ids: [], // array of numbers
+//     exclude_lead_ids: [], // array of numbers
+//     timezone: "America/Los_Angeles",
+//     days_of_week: [0, 1, 2, 3, 4],
+//     daily_start: "09:00",
+//     daily_end: "18:00",
+//     start_at: "",
+//     end_at: "",
+//     calls_per_minute: 10,
+//     parallel_calls: 2,
+//     retry_on_busy: true,
+//     busy_retry_delay_minutes: 15,
+//     max_attempts: 3,
+//   });
+//   const [leadSearch, setLeadSearch] = useState("");
+
+//   // Details drawer
+//   const [showDetails, setShowDetails] = useState(false);
+//   const [activeCampaign, setActiveCampaign] = useState(null);
+//   const [detailsLoading, setDetailsLoading] = useState(false);
+//   const [details, setDetails] = useState(null);
+
+//   /* Fetch list + resources on mount */
+//   useEffect(() => {
+//     fetchCampaigns();
+//     fetchFiles();
+//     fetchAssistants();
+//     // eslint-disable-next-line
+//   }, []);
+
+//   async function authedFetch(url, options = {}) {
+//     if (!token.current) {
+//       toast.error("No auth token found. Please log in.");
+//       throw new Error("No token");
+//     }
+//     const res = await fetch(url, {
+//       ...options,
+//       headers: {
+//         ...(options.headers || {}),
+//         Authorization: `Bearer ${token.current}`,
+//       },
+//     });
+//     return res;
+//   }
+
+//   async function fetchCampaigns() {
+//     try {
+//       setLoading(true);
+//       const res = await authedFetch(EP.LIST);
+//       if (!res.ok) throw new Error(`HTTP ${res.status}`);
+//       const data = await res.json();
+//       setCampaigns(Array.isArray(data) ? data : []);
+//     } catch (e) {
+//       console.error(e);
+//       toast.error("Failed to fetch campaigns");
+//       setCampaigns([]);
+//     } finally {
+//       setLoading(false);
+//     }
+//   }
+//   async function fetchFiles() {
+//     try {
+//       const res = await authedFetch(RESOURCES.FILES);
+//       if (!res.ok) throw new Error(`HTTP ${res.status}`);
+//       const data = await res.json();
+//       setFiles(Array.isArray(data) ? data : data?.items || []);
+//     } catch (e) {
+//       console.warn("Files fetch failed:", e.message);
+//       setFiles([]);
+//     }
+//   }
+//   async function fetchAssistants() {
+//     try {
+//       const res = await authedFetch(RESOURCES.ASSISTANTS);
+//       if (!res.ok) throw new Error(`HTTP ${res.status}`);
+//       const data = await res.json();
+
+//       // Be defensive about response shape:
+//       // could be {items:[...]}, {assistants:[...]}, {data:[...]}, or array
+//       const arr =
+//         (Array.isArray(data) && data) ||
+//         data?.items ||
+//         data?.assistants ||
+//         data?.data ||
+//         [];
+
+//       // Only keep entries with an id
+//       const normalized = arr.filter((a) => a && (a.id !== undefined && a.id !== null));
+//       setAssistants(normalized);
+//     } catch (e) {
+//       console.warn("Assistants fetch failed:", e.message);
+//       setAssistants([]);
+//     }
+//   }
+
+//   async function loadLeadsForFile(fileId) {
+//     if (!fileId) {
+//       setLeadsForFile([]);
+//       return;
+//     }
+//     try {
+//       setLeadsLoading(true);
+//       const res = await authedFetch(RESOURCES.LEADS(fileId));
+//       if (!res.ok) throw new Error(`HTTP ${res.status}`);
+//       const json = await res.json();
+//       const list = Array.isArray(json) ? json : json?.leads || json?.items || [];
+//       setLeadsForFile(list);
+//     } catch (e) {
+//       console.warn("Leads fetch failed:", e.message);
+//       setLeadsForFile([]);
+//     } finally {
+//       setLeadsLoading(false);
+//     }
+//   }
+
+//   async function refreshAll() {
+//     setRefreshing(true);
+//     await fetchCampaigns();
+//     setRefreshing(false);
+//   }
+
+//   /* Derived list */
+//   const filtered = useMemo(() => {
+//     const q = debouncedQuery.trim().toLowerCase();
+//     let list = campaigns.filter((c) => {
+//       if (!q) return true;
+//       const fields = [
+//         (c.name || "").toLowerCase(),
+//         (c.status || "").toLowerCase(),
+//         String(c.id || ""),
+//         String(c.file_id || ""),
+//         String(c.assistant_id || ""),
+//       ];
+//       return fields.some((f) => f.includes(q));
+//     });
+//     const dir = sortDir === "asc" ? 1 : -1;
+//     list.sort((a, b) => {
+//       let va, vb;
+//       switch (sortBy) {
+//         case "name":
+//           va = (a.name || "").toLowerCase();
+//           vb = (b.name || "").toLowerCase();
+//           break;
+//         case "status":
+//           va = (a.status || "").toLowerCase();
+//           vb = (b.status || "").toLowerCase();
+//           break;
+//         case "calls_per_minute":
+//           va = a.calls_per_minute || 0;
+//           vb = b.calls_per_minute || 0;
+//           break;
+//         case "created_at":
+//         default:
+//           va = new Date(a.created_at || 0).getTime();
+//           vb = new Date(b.created_at || 0).getTime();
+//       }
+//       if (va < vb) return -1 * dir;
+//       if (va > vb) return 1 * dir;
+//       return 0;
+//     });
+//     return list;
+//   }, [campaigns, debouncedQuery, sortBy, sortDir]);
+
+//   const totalItems = filtered.length;
+//   const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
+//   useEffect(() => {
+//     if (page > totalPages) setPage(totalPages);
+//   }, [page, totalPages]);
+//   const start = (page - 1) * pageSize;
+//   const end = start + pageSize;
+//   const pageItems = filtered.slice(start, end);
+
+//   // Stats
+//   const stats = useMemo(() => {
+//     const total = filtered.length;
+//     const running = filtered.filter((c) => (c.status || "").toLowerCase() === "running").length;
+//     const paused = filtered.filter((c) => (c.status || "").toLowerCase() === "paused").length;
+//     return { total, running, paused };
+//   }, [filtered]);
+
+//   /* Create: behavior */
+//   function onCreateChange(e) {
+//     const { name, value, type, checked } = e.target;
+//     setCreateForm((f) => {
+//       const next = { ...f, [name]: type === "checkbox" ? checked : value };
+//       // If file changes and mode requires leads, refresh leads
+//       if (name === "file_id") {
+//         const fileIdNum = Number(value) || "";
+//         if (fileIdNum) {
+//           loadLeadsForFile(fileIdNum);
+//         } else {
+//           setLeadsForFile([]);
+//         }
+//         // reset include/exclude selection when file changes
+//         next.include_lead_ids = [];
+//         next.exclude_lead_ids = [];
+//       }
+//       // If mode changes, reset include/exclude
+//       if (name === "selection_mode") {
+//         next.include_lead_ids = [];
+//         next.exclude_lead_ids = [];
+//       }
+//       return next;
+//     });
+//   }
+//   function toggleDOW(d) {
+//     setCreateForm((f) => {
+//       const has = f.days_of_week.includes(d);
+//       const days = has ? f.days_of_week.filter((x) => x !== d) : [...f.days_of_week, d];
+//       days.sort((a, b) => a - b);
+//       return { ...f, days_of_week: days };
+//     });
+//   }
+
+//   async function createCampaign() {
+//     if (!createForm.name || !createForm.file_id || !createForm.assistant_id) {
+//       toast.error("Name, File and Assistant are required.");
+//       return;
+//     }
+//     if (createForm.selection_mode !== "ALL" && leadsForFile.length === 0) {
+//       toast.error("No leads available for the selected file.");
+//       return;
+//     }
+//     const payload = {
+//       name: String(createForm.name).trim(),
+//       file_id: Number(createForm.file_id),
+//       assistant_id: Number(createForm.assistant_id),
+//       selection_mode: createForm.selection_mode,
+//       include_lead_ids:
+//         createForm.selection_mode === "ONLY" && createForm.include_lead_ids?.length
+//           ? createForm.include_lead_ids
+//           : null,
+//       exclude_lead_ids:
+//         createForm.selection_mode === "SKIP" && createForm.exclude_lead_ids?.length
+//           ? createForm.exclude_lead_ids
+//           : null,
+//       timezone: createForm.timezone || "America/Los_Angeles",
+//       days_of_week: createForm.days_of_week,
+//       daily_start: createForm.daily_start || "09:00",
+//       daily_end: createForm.daily_end || "18:00",
+//       start_at: fromInputDateTimeLocal(createForm.start_at),
+//       end_at: fromInputDateTimeLocal(createForm.end_at),
+//       calls_per_minute: Number(createForm.calls_per_minute) || 10,
+//       parallel_calls: Number(createForm.parallel_calls) || 2,
+//       retry_on_busy: !!createForm.retry_on_busy,
+//       busy_retry_delay_minutes: Number(createForm.busy_retry_delay_minutes) || 15,
+//       max_attempts: Number(createForm.max_attempts) || 3,
+//     };
+//     try {
+//       setCreating(true);
+//       const res = await authedFetch(EP.CREATE, {
+//         method: "POST",
+//         headers: { "Content-Type": "application/json" },
+//         body: JSON.stringify(payload),
+//       });
+//       const json = await res.json().catch(() => ({}));
+//       if (!res.ok || json?.success === false) {
+//         throw new Error(json?.detail || `HTTP ${res.status}`);
+//       }
+//       toast.success(json?.detail || "Campaign created.");
+//       setShowCreate(false);
+//       setCreateForm((f) => ({
+//         ...f,
+//         name: "",
+//         include_lead_ids: [],
+//         exclude_lead_ids: [],
+//       }));
+//       await fetchCampaigns();
+//     } catch (e) {
+//       console.error(e);
+//       toast.error(e?.message || "Create failed");
+//     } finally {
+//       setCreating(false);
+//     }
+//   }
+
+//   /* Details */
+//   async function openDetails(c) {
+//     setActiveCampaign(c);
+//     setShowDetails(true);
+//     await loadDetails(c.id);
+//   }
+//   async function loadDetails(id) {
+//     if (!id) return;
+//     try {
+//       setDetailsLoading(true);
+//       const res = await authedFetch(EP.DETAIL(id));
+//       if (!res.ok) throw new Error(`HTTP ${res.status}`);
+//       const json = await res.json();
+//       setDetails(json);
+//     } catch (e) {
+//       console.error(e);
+//       toast.error("Failed to load campaign details");
+//       setDetails(null);
+//     } finally {
+//       setDetailsLoading(false);
+//     }
+//   }
+
+//   /* Controls */
+//   async function postAction(urlBuilder, id, okMsg) {
+//     try {
+//       const res = await authedFetch(urlBuilder(id), { method: "POST" });
+//       const json = await res.json().catch(() => ({}));
+//       if (!res.ok || json?.success === false) throw new Error(json?.detail || `HTTP ${res.status}`);
+//       toast.success(json?.detail || okMsg);
+//       await fetchCampaigns();
+//       if (activeCampaign && activeCampaign.id === id) {
+//         await loadDetails(id);
+//       }
+//     } catch (e) {
+//       console.error(e);
+//       toast.error(e?.message || "Action failed");
+//     }
+//   }
+//   const doPause = (id) => postAction(EP.PAUSE, id, "Paused");
+//   const doResume = (id) => postAction(EP.RESUME, id, "Resumed");
+//   const doStop = (id) => postAction(EP.STOP, id, "Stopped");
+
+//   async function doDelete(id) {
+//     if (!confirm("Delete this campaign and its progress rows?")) return;
+//     try {
+//       const res = await authedFetch(EP.DELETE(id), { method: "DELETE" });
+//       const json = await res.json().catch(() => ({}));
+//       if (!res.ok || json?.success === false) throw new Error(json?.detail || `HTTP ${res.status}`);
+//       toast.success(json?.detail || "Deleted");
+//       setShowDetails(false);
+//       setActiveCampaign(null);
+//       await fetchCampaigns();
+//     } catch (e) {
+//       console.error(e);
+//       toast.error(e?.message || "Delete failed");
+//     }
+//   }
+
+//   async function doRunNow(id, batchSize) {
+//     try {
+//       const res = await authedFetch(EP.RUN_NOW(id), {
+//         method: "POST",
+//         headers: { "Content-Type": "application/json" },
+//         body: JSON.stringify({ batch_size: Number(batchSize) || 5 }),
+//       });
+//       const json = await res.json().catch(() => ({}));
+//       if (!res.ok || json?.success === false) throw new Error(json?.detail || `HTTP ${res.status}`);
+//       toast.success(json?.detail || "Triggered.");
+//     } catch (e) {
+//       console.error(e);
+//       toast.error(e?.message || "Run-now failed");
+//     }
+//   }
+
+//   async function updateSchedule(id, form) {
+//     const payload = {
+//       timezone: form.timezone || undefined,
+//       days_of_week: form.days_of_week?.length ? form.days_of_week : undefined,
+//       daily_start: form.daily_start || undefined,
+//       daily_end: form.daily_end || undefined,
+//       start_at: fromInputDateTimeLocal(form.start_at),
+//       end_at: fromInputDateTimeLocal(form.end_at),
+//     };
+//     try {
+//       const res = await authedFetch(EP.SCHEDULE(id), {
+//         method: "POST",
+//         headers: { "Content-Type": "application/json" },
+//         body: JSON.stringify(payload),
+//       });
+//       const json = await res.json().catch(() => ({}));
+//       if (!res.ok || json?.success === false) throw new Error(json?.detail || `HTTP ${res.status}`);
+//       toast.success(json?.detail || "Schedule updated");
+//       await fetchCampaigns();
+//       await loadDetails(id);
+//     } catch (e) {
+//       console.error(e);
+//       toast.error(e?.message || "Update failed");
+//     }
+//   }
+
+//   async function updateRetryPolicy(id, form) {
+//     const payload = {
+//       retry_on_busy: !!form.retry_on_busy,
+//       busy_retry_delay_minutes: Number(form.busy_retry_delay_minutes) || 15,
+//       max_attempts: Number(form.max_attempts) || 3,
+//     };
+//     try {
+//       const res = await authedFetch(EP.RETRY(id), {
+//         method: "POST",
+//         headers: { "Content-Type": "application/json" },
+//         body: JSON.stringify(payload),
+//       });
+//       const json = await res.json().catch(() => ({}));
+//       if (!res.ok || json?.success === false) throw new Error(json?.detail || `HTTP ${res.status}`);
+//       toast.success(json?.detail || "Retry policy updated");
+//       await loadDetails(id);
+//     } catch (e) {
+//       console.error(e);
+//       toast.error(e?.message || "Update failed");
+//     }
+//   }
+
+//   async function downloadICS(id, name = "campaign") {
+//     try {
+//       const res = await authedFetch(EP.ICS(id));
+//       if (!res.ok) throw new Error(`HTTP ${res.status}`);
+//       const blob = await res.blob();
+//       const url = URL.createObjectURL(blob);
+//       const a = document.createElement("a");
+//       a.href = url;
+//       a.download = `${name || "campaign"}.ics`;
+//       document.body.appendChild(a);
+//       a.click();
+//       a.remove();
+//       URL.revokeObjectURL(url);
+//     } catch (e) {
+//       console.error(e);
+//       toast.error("ICS download failed");
+//     }
+//   }
+
+//   /* Render */
+//   return (
+//     <div className="min-h-screen w-full text-slate-900 bg-gradient-to-b from-slate-50 via-white to-slate-50 relative">
+//       {/* Decorations */}
+//       <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
+//         <div className="absolute -top-24 -left-24 h-72 w-72 rounded-full bg-blue-400/15 blur-3xl" />
+//         <div className="absolute top-1/3 -right-20 h-72 w-72 rounded-full bg-cyan-400/20 blur-3xl animate-pulse" />
+//         <div className="absolute bottom-0 left-1/3 h-72 w-72 rounded-full bg-indigo-400/10 blur-3xl" />
+//       </div>
+
+//       {/* Header */}
+//       <header className="relative z-0 border-b border-slate-200/70 bg-white/60 backdrop-blur after:absolute after:inset-x-0 after:-bottom-[1px] after:h-[2px] after:bg-gradient-to-r after:from-transparent after:via-cyan-400/70 after:to-transparent">
+//         <div className="mx-auto max-w-[1400px] px-4 sm:px-6 lg:px-8 py-5">
+//           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+//             <div>
+//               <h1 className="text-2xl font-black tracking-tight">
+//                 <span className="bg-gradient-to-r from-blue-600 via-cyan-500 to-blue-600 bg-clip-text text-transparent">
+//                   Campaigns
+//                 </span>
+//               </h1>
+//               <p className="text-sm text-slate-600">Create, schedule, and track outbound calling campaigns.</p>
+//             </div>
+
+//             <div className="flex items-center gap-2">
+//               <ButtonGhost onClick={() => setShowCreate(true)} icon={<Plus className="h-4 w-4" />}>
+//                 New Campaign
+//               </ButtonGhost>
+//               <ButtonGhost onClick={refreshAll} icon={<RefreshCw className={cx("h-4 w-4", refreshing && "animate-spin")} />}>
+//                 Refresh
+//               </ButtonGhost>
+//             </div>
+//           </div>
+
+//           {/* Filters */}
+//           <div className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-3">
+//             <div className="relative sm:col-span-2">
+//               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
+//               <input
+//                 value={query}
+//                 onChange={(e) => {
+//                   setQuery(e.target.value);
+//                   setPage(1);
+//                 }}
+//                 placeholder="Search name, status, IDs…"
+//                 className="w-full rounded-2xl border border-slate-200/70 bg-white/80 pl-10 pr-3 py-2.5 text-slate-900 placeholder-slate-400 outline-none ring-1 ring-white/60 transition focus:ring-2 focus:ring-cyan-400/40 focus:border-cyan-300"
+//                 aria-label="Search campaigns"
+//               />
+//             </div>
+
+//             <div className="flex items-center justify-between sm:justify-end gap-3">
+//               <div className="text-sm text-slate-600 hidden sm:block">
+//                 Total: <span className="font-semibold text-slate-900">{totalItems}</span>
+//               </div>
+//               <select
+//                 value={pageSize}
+//                 onChange={(e) => {
+//                   setPageSize(Number(e.target.value));
+//                   setPage(1);
+//                 }}
+//                 className="rounded-2xl border border-slate-200/70 bg-white/80 px-3 py-2 text-sm outline-none ring-1 ring-white/60 focus:ring-2 focus:ring-cyan-400/40"
+//                 aria-label="Rows per page"
+//               >
+//                 {[10, 20, 40, 80].map((n) => (
+//                   <option key={n} value={n}>
+//                     {n} / page
+//                   </option>
+//                 ))}
+//               </select>
+//             </div>
+//           </div>
+//         </div>
+//       </header>
+
+//       {/* Stats */}
+//       <div className="mx-auto max-w-[1400px] px-4 sm:px-6 lg:px-8 py-6">
+//         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+//           <StatCard label="Total Campaigns" value={stats.total} Icon={Users} tone="blue" />
+//           <StatCard label="Running" value={stats.running} Icon={CheckCircle2} tone="cyan" />
+//           <StatCard label="Paused" value={stats.paused} Icon={XCircle} tone="blue" />
+//         </div>
+//       </div>
+
+//       {/* Content */}
+//       <main className="mx-auto max-w-[1400px] px-4 sm:px-6 lg:px-8 pb-6">
+//         {/* Table */}
+//         <motion.div
+//           initial="hidden"
+//           animate="show"
+//           variants={stagger}
+//           className="overflow-x-auto rounded-3xl border border-slate-200/70 bg-white/70 backdrop-blur ring-1 ring-white/50"
+//         >
+//           <table className="min-w-full text-left">
+//             <thead className="bg-slate-50/80 text-slate-600 text-sm">
+//               <tr className="[&>th]:px-5 [&>th]:py-3">
+//                 <Th sortKey="created_at" sortBy={sortBy} sortDir={sortDir} onSort={(k) => setSort(k, setSortBy, setSortDir)}>
+//                   Created
+//                 </Th>
+//                 <Th sortKey="name" sortBy={sortBy} sortDir={sortDir} onSort={(k) => setSort(k, setSortBy, setSortDir)}>
+//                   Name
+//                 </Th>
+//                 <Th sortKey="status" sortBy={sortBy} sortDir={sortDir} onSort={(k) => setSort(k, setSortBy, setSortDir)}>
+//                   Status
+//                 </Th>
+//                 <th className="px-5 py-3">Window</th>
+//                 <th className="px-5 py-3">Pacing</th>
+//                 <th className="px-5 py-3">Counts</th>
+//                 <th className="px-5 py-3 text-right">Actions</th>
+//               </tr>
+//             </thead>
+//             <tbody className="divide-y divide-slate-100">
+//               {loading ? (
+//                 <RowSkeleton rows={8} cols={7} />
+//               ) : pageItems.length === 0 ? (
+//                 <tr>
+//                   <td colSpan={7} className="px-5 py-12 text-center text-slate-600">
+//                     No campaigns found. Create one to get started.
+//                   </td>
+//                 </tr>
+//               ) : (
+//                 pageItems.map((c) => (
+//                   <motion.tr key={c.id} variants={fadeUp} className="hover:bg-slate-50/70 transition-colors">
+//                     <td className="px-5 py-3 text-sm text-slate-600 whitespace-nowrap">
+//                       {c.created_at ? (
+//                         <span className="inline-flex items-center gap-1.5">
+//                           <CalendarDays className="h-4 w-4 text-slate-400" />
+//                           {fmtDT(c.created_at)}
+//                         </span>
+//                       ) : (
+//                         "Unknown"
+//                       )}
+//                     </td>
+//                     <td className="px-5 py-3 font-medium text-slate-900">{unknown(c.name)}</td>
+//                     <td className="px-5 py-3">
+//                       <StatusChip status={c.status} />
+//                     </td>
+//                     <td className="px-5 py-3 text-sm text-slate-700">
+//                       <div className="flex flex-col">
+//                         <div>
+//                           {Array.isArray(c?.window?.days) ? dowLabel(c.window.days) : c.days_of_week ? dowLabel(c.days_of_week) : "Mon–Fri"}
+//                         </div>
+//                         <div className="text-slate-500">
+//                           {c?.window ? `${c.window.start}–${c.window.end}` : `${c.daily_start || "09:00"}–${c.daily_end || "18:00"}`}
+//                         </div>
+//                         <div className="text-slate-500">{c.timezone || "Local"}</div>
+//                       </div>
+//                     </td>
+//                     <td className="px-5 py-3 text-sm text-slate-700">
+//                       <div className="flex items-center gap-2">
+//                         <PhoneCall className="h-4 w-4 text-slate-400" />
+//                         {c.calls_per_minute ?? c.callsPerMinute}
+//                         <span className="text-slate-500">/min</span>
+//                         <span className="mx-1">·</span>
+//                         <Clock className="h-4 w-4 text-slate-400" />
+//                         {c.parallel_calls ?? c.parallelCalls}
+//                         <span className="text-slate-500">parallel</span>
+//                       </div>
+//                     </td>
+//                     <td className="px-5 py-3 text-sm text-slate-700">
+//                       <div className="flex items-center gap-3">
+//                         <span>Total: {c?.counts?.total ?? "—"}</span>
+//                         <span>Done: {c?.counts?.completed_or_failed ?? "—"}</span>
+//                       </div>
+//                     </td>
+//                     <td className="px-5 py-3">
+//                       <div className="flex items-center justify-end gap-2">
+//                         <ButtonGhost onClick={() => openDetails(c)} icon={<Eye className="h-4 w-4" />}>
+//                           View
+//                         </ButtonGhost>
+//                         {String(c.status).toLowerCase() === "paused" ? (
+//                           <ButtonGhost onClick={() => doResume(c.id)} icon={<Play className="h-4 w-4" />}>
+//                             Resume
+//                           </ButtonGhost>
+//                         ) : (
+//                           <ButtonGhost onClick={() => doPause(c.id)} icon={<Pause className="h-4 w-4" />}>
+//                             Pause
+//                           </ButtonGhost>
+//                         )}
+//                         <ButtonGhost onClick={() => doStop(c.id)} icon={<StopSquare className="h-4 w-4" />}>
+//                           Stop
+//                         </ButtonGhost>
+//                         <ButtonGhost onClick={() => doDelete(c.id)} icon={<Trash2 className="h-4 w-4" />}>
+//                           Delete
+//                         </ButtonGhost>
+//                       </div>
+//                     </td>
+//                   </motion.tr>
+//                 ))
+//               )}
+//             </tbody>
+//           </table>
+//         </motion.div>
+
+//         {/* Pagination */}
+//         {!loading && totalItems > 0 && (
+//           <div className="mt-6 flex flex-col items-center justify-between gap-3 sm:flex-row text-slate-700">
+//             <div className="text-sm">
+//               Showing <span className="font-semibold text-slate-900">{Math.min(end, totalItems)}</span> of {totalItems}
+//             </div>
+//             <div className="flex flex-wrap items-center gap-2">
+//               <PagerButton disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>
+//                 <ChevronLeft className="h-4 w-4" /> Prev
+//               </PagerButton>
+//               <div className="text-sm">
+//                 Page <span className="font-semibold text-slate-900">{page}</span> / {totalPages}
+//               </div>
+//               <PagerButton disabled={page >= totalPages} onClick={() => setPage((p) => Math.min(totalPages, p + 1))}>
+//                 Next <ChevronRight className="h-4 w-4" />
+//               </PagerButton>
+//             </div>
+//           </div>
+//         )}
+//       </main>
+
+//       {/* Create Drawer */}
+//       <AnimatePresence>
+//         {showCreate && (
+//           <>
+//             <motion.div className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm" variants={overlay} initial="hidden" animate="show" exit="exit" onClick={() => setShowCreate(false)} />
+//             <motion.section
+//               className="fixed inset-y-0 right-0 z-50 w-full sm:w-[560px] md:w-[820px] bg-white shadow-2xl border-l border-slate-200 flex flex-col"
+//               initial={{ x: "100%" }}
+//               animate={{ x: 0, transition: { type: "spring", stiffness: 260, damping: 28 } }}
+//               exit={{ x: "100%", transition: { duration: 0.2 } }}
+//               aria-label="Create campaign"
+//             >
+//               {/* Topbar */}
+//               <div className="sticky top-0 bg-white/90 backdrop-blur border-b border-slate-200 p-4 flex items-center justify-between">
+//                 <div className="flex items-center gap-3">
+//                   <button onClick={() => setShowCreate(false)} className="grid h-9 w-9 place-items-center rounded-xl border border-slate-200 hover:bg-slate-50" aria-label="Close">
+//                     <X className="h-5 w-5" />
+//                   </button>
+//                   <div>
+//                     <h3 className="text-lg font-bold leading-tight">New Campaign</h3>
+//                     <p className="text-xs text-slate-600">Pick your file, assistant, window and pacing.</p>
+//                   </div>
+//                 </div>
+//                 <div className="flex items-center gap-2">
+//                   <ButtonGhost onClick={() => setShowCreate(false)}>Cancel</ButtonGhost>
+//                   <ButtonPrimary onClick={createCampaign} disabled={creating} icon={creating ? <Loader2 className="h-4 w-4 animate-spin" /> : undefined}>
+//                     {creating ? "Creating…" : "Create"}
+//                   </ButtonPrimary>
+//                 </div>
 //               </div>
 
-//               {/* Step content */}
-//               {step === 1 && (
-//                 <div className="space-y-4">
-//                   <div>
-//                     <label className="block text-sm font-medium text-blue-900 mb-1">Campaign Name</label>
-//                     <input
-//                       value={campaignName}
-//                       onChange={(e) => setCampaignName(e.target.value)}
-//                       placeholder="e.g., Fall Outreach"
-//                       className={`w-full rounded-lg px-4 py-2 bg-white ${neon.glowBorder} ${neon.ring}`}
-//                     />
-//                   </div>
-//                   <div>
-//                     <label className="block text-sm font-medium text-blue-900 mb-1">Assistant ID / Reference</label>
-//                     <input
-//                       value={assistantId}
-//                       onChange={(e) => setAssistantId(e.target.value)}
-//                       placeholder="Enter assistant ID or reference"
-//                       className={`w-full rounded-lg px-4 py-2 bg-white ${neon.glowBorder} ${neon.ring}`}
-//                     />
-//                     <p className="text-xs text-gray-500 mt-1">
-//                       (Since assistant service isn’t provided, paste the ID/reference of the assistant you want to use.)
-//                     </p>
-//                   </div>
-//                   <div className="flex justify-end">
-//                     <button
-//                       onClick={goNext}
-//                       className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700"
+//               {/* Body */}
+//               <div className="flex-1 overflow-y-auto p-6">
+//                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+//                   <Field label="Name" name="name" value={createForm.name} onChange={onCreateChange} />
+//                   <label className="block">
+//                     <span className="mb-1 block text-sm font-semibold text-slate-700">Timezone (IANA)</span>
+//                     <select
+//                       name="timezone"
+//                       value={createForm.timezone}
+//                       onChange={onCreateChange}
+//                       className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-slate-900 outline-none ring-1 ring-white/70 focus:ring-2 focus:ring-cyan-400/40"
 //                     >
-//                       Next
-//                     </button>
-//                   </div>
-//                 </div>
-//               )}
-
-//               {step === 2 && (
-//                 <div className="space-y-4">
-//                   <div className="flex items-center justify-between">
-//                     <h3 className="text-lg font-semibold text-blue-900">Select a List</h3>
-//                     <button
-//                       onClick={() => setOpenCreateList(true)}
-//                       className="px-3 py-2 rounded border border-blue-200 text-blue-700 hover:bg-blue-50"
-//                     >
-//                       New List
-//                     </button>
-//                   </div>
-//                   {lists.length === 0 ? (
-//                     <div className="text-center text-gray-500 py-8">No lists found.</div>
-//                   ) : (
-//                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-//                       {lists.map((list) => (
-//                         <button
-//                           key={list.id}
-//                           onClick={() => setSelectedListId(list.id)}
-//                           className={`text-left rounded-xl p-4 bg-white hover:bg-blue-50 transition ${neon.glowBorder}
-//                                       ${selectedListId === list.id ? "ring-2 ring-blue-500/30" : ""}`}
-//                         >
-//                           <div className="text-blue-900 font-semibold">{list.name}</div>
-//                           <div className="text-xs text-gray-500 mt-1">
-//                             Leads: {list.leads_count ?? "-"}
-//                           </div>
-//                           <div className="text-xs text-gray-400 mt-1">
-//                             Created: {list.created_at ? new Date(list.created_at).toLocaleDateString() : "-"}
-//                           </div>
-//                         </button>
+//                       {TIMEZONES.map((tz) => (
+//                         <option key={tz.value} value={tz.value}>
+//                           {tz.label}
+//                         </option>
 //                       ))}
-//                     </div>
-//                   )}
-//                   <div className="flex justify-between">
-//                     <button onClick={goBack} className="px-4 py-2 rounded border border-gray-300 hover:bg-gray-50">
-//                       Back
-//                     </button>
-//                     <button onClick={goNext} className="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700">
-//                       Next
-//                     </button>
-//                   </div>
-//                 </div>
-//               )}
-
-//               {step === 3 && (
-//                 <div className="space-y-4">
-//                   <div className="flex items-center justify-between">
-//                     <h3 className="text-lg font-semibold text-blue-900">Select Leads</h3>
-//                     <div className="flex gap-2">
-//                       <button
-//                         className="px-3 py-2 rounded border border-blue-200 text-blue-700 hover:bg-blue-50"
-//                         onClick={() => setOpenAddLead(true)}
-//                       >
-//                         Add Lead
-//                       </button>
-//                       <button
-//                         className="px-3 py-2 rounded border border-blue-200 text-blue-700 hover:bg-blue-50"
-//                         onClick={() => fetchLeadsForList(selectedListId)}
-//                         title="Refresh"
-//                       >
-//                         <RefreshCw className="w-4 h-4"/>
-//                       </button>
-//                     </div>
-//                   </div>
-
-//                   <div className="flex items-center gap-3">
-//                     <label className="inline-flex items-center gap-2 text-sm">
-//                       <input
-//                         type="checkbox"
-//                         checked={leads.length > 0 && selectedLeadIds.length === leads.length}
-//                         onChange={(e) =>
-//                           setSelectedLeadIds(e.target.checked ? leads.map((l) => l.id) : [])
-//                         }
-//                       />
-//                       <span>Select All</span>
-//                     </label>
-//                     <div className="text-sm text-gray-500">
-//                       {selectedListObj?.name ? `List: ${selectedListObj.name}` : ""}
-//                     </div>
-//                   </div>
-
-//                   <div className="max-h-72 overflow-y-auto rounded-xl bg-white border border-blue-100">
-//                     <table className="min-w-full">
-//                       <thead className="sticky top-0 bg-blue-50/70">
-//                         <tr>
-//                           <th className="px-4 py-2 text-left text-xs font-semibold text-blue-900">Sel</th>
-//                           <th className="px-4 py-2 text-left text-xs font-semibold text-blue-900">Name</th>
-//                           <th className="px-4 py-2 text-left text-xs font-semibold text-blue-900">Phone</th>
-//                           <th className="px-4 py-2 text-left text-xs font-semibold text-blue-900">Email</th>
-//                         </tr>
-//                       </thead>
-//                       <tbody>
-//                         {leads.length === 0 ? (
-//                           <tr>
-//                             <td colSpan={4} className="px-4 py-6 text-center text-gray-500">No leads.</td>
-//                           </tr>
-//                         ) : leads.map((lead) => (
-//                           <tr key={lead.id} className="odd:bg-white even:bg-blue-50/30">
-//                             <td className="px-4 py-2">
-//                               <input
-//                                 type="checkbox"
-//                                 checked={selectedLeadIds.includes(lead.id)}
-//                                 onChange={() => setSelectedLeadIds((prev) =>
-//                                   prev.includes(lead.id)
-//                                     ? prev.filter((id) => id !== lead.id)
-//                                     : [...prev, lead.id]
-//                                 )}
-//                               />
-//                             </td>
-//                             <td className="px-4 py-2 text-sm">{lead.name}</td>
-//                             <td className="px-4 py-2 text-sm">{lead.phone}</td>
-//                             <td className="px-4 py-2 text-sm">{lead.email}</td>
-//                           </tr>
-//                         ))}
-//                       </tbody>
-//                     </table>
-//                   </div>
-
-//                   <div className="flex justify-between">
-//                     <button onClick={goBack} className="px-4 py-2 rounded border border-gray-300 hover:bg-gray-50">Back</button>
-//                     <button onClick={goNext} className="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700">Next</button>
-//                   </div>
-//                 </div>
-//               )}
-
-//               {step === 4 && (
-//                 <div className="space-y-4">
-//                   <h3 className="text-lg font-semibold text-blue-900">Follow-up Settings</h3>
-//                   <label className="flex items-center gap-3 cursor-pointer">
-//                     <span className={`w-12 h-6 rounded-full p-1 transition ${retryNonPicking ? "bg-blue-600" : "bg-blue-200"}`}>
-//                       <span className={`block bg-white w-4 h-4 rounded-full shadow transform transition ${retryNonPicking ? "translate-x-6" : ""}`} />
-//                     </span>
-//                     <input
-//                       type="checkbox"
-//                       checked={retryNonPicking}
-//                       onChange={() => setRetryNonPicking(!retryNonPicking)}
-//                       className="hidden"
-//                     />
-//                     <span className="text-sm text-blue-900">Call again for non-picking leads</span>
+//                     </select>
 //                   </label>
 
-//                   {retryNonPicking && (
-//                     <div>
-//                       <label className="block text-sm font-medium text-blue-900 mb-1">How many tries (per lead)</label>
-//                       <input
-//                         type="number"
-//                         min="1"
-//                         value={maxRetries}
-//                         onChange={(e) => setMaxRetries(Number(e.target.value))}
-//                         className={`w-full rounded-lg px-4 py-2 bg-white ${neon.glowBorder} ${neon.ring}`}
-//                       />
+//                   {/* Files dropdown */}
+//                   <label className="block">
+//                     <span className="mb-1 block text-sm font-semibold text-slate-700">File</span>
+//                     <select
+//                       name="file_id"
+//                       value={createForm.file_id}
+//                       onChange={onCreateChange}
+//                       className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-slate-900 outline-none ring-1 ring-white/70 focus:ring-2 focus:ring-cyan-400/40"
+//                     >
+//                       <option value="">Select a file…</option>
+//                       {files.map((f) => (
+//                         <option key={f.id} value={f.id}>
+//                           {f.name || `File #${f.id}`}
+//                         </option>
+//                       ))}
+//                     </select>
+//                   </label>
+
+//                   {/* Assistants dropdown (from /api/get-assistants) */}
+//                   <label className="block">
+//                     <span className="mb-1 block text-sm font-semibold text-slate-700">Assistant</span>
+//                     <select
+//                       name="assistant_id"
+//                       value={createForm.assistant_id}
+//                       onChange={onCreateChange}
+//                       className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-slate-900 outline-none ring-1 ring-white/70 focus:ring-2 focus:ring-cyan-400/40"
+//                     >
+//                       <option value="">Select an assistant…</option>
+//                       {assistants.map((a) => (
+//                         <option key={a.id} value={a.id}>
+//                           {(a.name || a.assistant_name || a.title || `Assistant #${a.id}`) +
+//                             (a.attached_number || a.number || a.phone ? ` (${a.attached_number || a.number || a.phone})` : "")}
+//                         </option>
+//                       ))}
+//                     </select>
+//                   </label>
+
+//                   {/* Selection mode */}
+//                   <div className="md:col-span-2">
+//                     <label className="mb-1 block text-sm font-semibold text-slate-700">Selection Mode</label>
+//                     <div className="flex flex-wrap gap-2">
+//                       {["ALL", "ONLY", "SKIP"].map((m) => (
+//                         <label
+//                           key={m}
+//                           className={cx(
+//                             "inline-flex items-center gap-2 rounded-2xl border px-3.5 py-2 cursor-pointer",
+//                             createForm.selection_mode === m ? "border-cyan-400 bg-cyan-50" : "border-slate-200 bg-white"
+//                           )}
+//                         >
+//                           <input type="radio" className="hidden" name="selection_mode" value={m} checked={createForm.selection_mode === m} onChange={onCreateChange} />
+//                           <span className="text-sm">{m}</span>
+//                         </label>
+//                       ))}
+//                     </div>
+//                   </div>
+
+//                   {/* Lead selector for ONLY/SKIP */}
+//                   {createForm.selection_mode !== "ALL" && (
+//                     <div className="md:col-span-2 rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
+//                       <div className="font-semibold mb-3 flex items-center gap-2">
+//                         <Users className="h-4 w-4" /> {createForm.selection_mode === "ONLY" ? "Include specific leads" : "Skip specific leads"}
+//                       </div>
+
+//                       {!createForm.file_id ? (
+//                         <div className="text-sm text-slate-600">Please choose a File first to load leads.</div>
+//                       ) : leadsLoading ? (
+//                         <div className="text-sm text-slate-600">Loading leads…</div>
+//                       ) : leadsForFile.length === 0 ? (
+//                         <div className="text-sm text-slate-600">No leads found in this file.</div>
+//                       ) : (
+//                         <>
+//                           <div className="mb-2">
+//                             <input
+//                               value={leadSearch}
+//                               onChange={(e) => setLeadSearch(e.target.value)}
+//                               placeholder="Search leads by name, email, or mobile…"
+//                               className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-cyan-400/40"
+//                             />
+//                           </div>
+//                           <LeadMultiSelect
+//                             leads={leadsForFile}
+//                             mode={createForm.selection_mode}
+//                             search={leadSearch}
+//                             selectedIds={
+//                               createForm.selection_mode === "ONLY"
+//                                 ? createForm.include_lead_ids
+//                                 : createForm.exclude_lead_ids
+//                             }
+//                             onChange={(ids) =>
+//                               setCreateForm((f) => ({
+//                                 ...f,
+//                                 include_lead_ids: f.selection_mode === "ONLY" ? ids : [],
+//                                 exclude_lead_ids: f.selection_mode === "SKIP" ? ids : [],
+//                               }))
+//                             }
+//                           />
+//                         </>
+//                       )}
 //                     </div>
 //                   )}
 
-//                   <div>
-//                     <label className="block text-sm font-medium text-blue-900 mb-1">Start Date</label>
-//                     <input
-//                       type="date"
-//                       value={startDate}
-//                       min={todayYMD()}
-//                       onChange={(e) => setStartDate(e.target.value)}
-//                       className={`w-full rounded-lg px-4 py-2 bg-white ${neon.glowBorder} ${neon.ring}`}
-//                     />
-//                   </div>
-//                   <div>
-//                     <label className="block text-sm font-medium text-blue-900 mb-1">End Date</label>
-//                     <input
-//                       type="date"
-//                       value={endDate}
-//                       min={startDate || todayYMD()}
-//                       onChange={(e) => setEndDate(e.target.value)}
-//                       className={`w-full rounded-lg px-4 py-2 bg-white ${neon.glowBorder} ${neon.ring}`}
-//                     />
-//                   </div>
-
-//                   <div className="flex justify-between">
-//                     <button onClick={goBack} className="px-4 py-2 rounded border border-gray-300 hover:bg-gray-50">Back</button>
-//                     <button onClick={goNext} className="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700">Next</button>
-//                   </div>
-//                 </div>
-//               )}
-
-//               {step === 5 && (
-//                 <div className="space-y-6">
-//                   <h3 className="text-lg font-semibold text-blue-900">Schedule</h3>
-//                   <div>
-//                     <div className="font-semibold mb-2 flex items-center gap-2 text-blue-900">
-//                       <Calendar className="w-5 h-5" /> Calling Days
+//                   {/* Window */}
+//                   <div className="md:col-span-2 rounded-2xl border border-slate-200 bg-slate-50/60 p-4">
+//                     <div className="font-semibold mb-3 flex items-center gap-2">
+//                       <Settings className="h-4 w-4" /> Calling Window
 //                     </div>
-//                     <div className="grid grid-cols-7 gap-2">
-//                       {days.map((d) => {
-//                         const active = callingDays.includes(d);
-//                         return (
-//                           <button
-//                             key={d}
-//                             onClick={() => toggleDay(d)}
-//                             className={`px-3 py-2 rounded-lg text-sm font-semibold transition ${active ? "bg-blue-600 text-white" : "bg-white text-blue-700 border border-blue-300"}`}
-//                           >
-//                             {d}
-//                           </button>
-//                         );
-//                       })}
-//                     </div>
-//                   </div>
-
-//                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
-//                     <div>
-//                       <div className="font-semibold mb-2 flex items-center gap-2 text-blue-900">
-//                         <Clock className="w-5 h-5" /> Calling Hours
-//                       </div>
-//                       <div className="flex items-center gap-3 bg-blue-50/60 p-4 rounded-xl border border-blue-100">
-//                         <div className="flex flex-col">
-//                           <span className="text-xs text-gray-600 mb-1">Start</span>
-//                           <select
-//                             value={callingHours.start}
-//                             onChange={(e) => setCallingHours((h) => ({ ...h, start: e.target.value }))}
-//                             className={`rounded border border-blue-200 px-3 py-2 bg-white ${neon.ring}`}
-//                           >
-//                             {[...Array(24)].flatMap((_, h) =>
-//                               ["00", "30"].map((m) => {
-//                                 const v = `${String(h).padStart(2,"0")}:${m}`;
-//                                 return <option key={`s-${v}`} value={v}>{v}</option>;
-//                               })
-//                             )}
-//                           </select>
-//                         </div>
-//                         <span className="text-blue-700">—</span>
-//                         <div className="flex flex-col">
-//                           <span className="text-xs text-gray-600 mb-1">End</span>
-//                           <select
-//                             value={callingHours.end}
-//                             onChange={(e) => setCallingHours((h) => ({ ...h, end: e.target.value }))}
-//                             className={`rounded border border-blue-200 px-3 py-2 bg-white ${neon.ring}`}
-//                           >
-//                             {[...Array(24)].flatMap((_, h) =>
-//                               ["00", "30"].map((m) => {
-//                                 const v = `${String(h).padStart(2,"0")}:${m}`;
-//                                 return <option key={`e-${v}`} value={v}>{v}</option>;
-//                               })
-//                             )}
-//                           </select>
+//                     <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+//                       <div className="md:col-span-2">
+//                         <div className="text-sm text-slate-700 mb-2">Days of week</div>
+//                         <div className="flex flex-wrap gap-2">
+//                           {[0, 1, 2, 3, 4, 5, 6].map((d) => (
+//                             <button
+//                               key={d}
+//                               type="button"
+//                               onClick={() => toggleDOW(d)}
+//                               className={cx(
+//                                 "px-3 py-1.5 rounded-xl border text-sm",
+//                                 createForm.days_of_week.includes(d) ? "border-blue-400 bg-blue-50 text-blue-700" : "border-slate-200 bg-white text-slate-700"
+//                               )}
+//                             >
+//                               {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"][d]}
+//                             </button>
+//                           ))}
 //                         </div>
 //                       </div>
-//                     </div>
-
-//                     <div>
-//                       <div className="font-semibold mb-2 flex items-center gap-2 text-blue-900">
-//                         <Globe2 className="w-5 h-5" /> Timezone
+//                       <div>
+//                         <Field label="Daily start" name="daily_start" value={createForm.daily_start} onChange={onCreateChange} placeholder="HH:MM" />
+//                         <div className="h-2" />
+//                         <Field label="Daily end" name="daily_end" value={createForm.daily_end} onChange={onCreateChange} placeholder="HH:MM" />
 //                       </div>
-//                       <select
-//                         value={timezone}
-//                         onChange={(e) => setTimezone(e.target.value)}
-//                         className={`w-full rounded-lg px-3 py-2 bg-white border border-blue-200 ${neon.ring}`}
-//                       >
-//                         {tzOptions.map((tz) => (
-//                           <option key={tz.value} value={tz.value}>{tz.label}</option>
-//                         ))}
-//                       </select>
+//                     </div>
+//                     <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-3">
+//                       <Field label="Start at (optional)" name="start_at" type="datetime-local" value={createForm.start_at} onChange={onCreateChange} />
+//                       <Field label="End at (optional)" name="end_at" type="datetime-local" value={createForm.end_at} onChange={onCreateChange} />
 //                     </div>
 //                   </div>
 
-//                   <div className="flex justify-between">
-//                     <button onClick={goBack} className="px-4 py-2 rounded border border-gray-300 hover:bg-gray-50">Back</button>
-//                     <button onClick={goNext} className="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700">Next</button>
+//                   {/* Pacing & retry */}
+//                   <Field label="Calls per minute" name="calls_per_minute" value={createForm.calls_per_minute} onChange={onCreateChange} />
+//                   <Field label="Parallel calls" name="parallel_calls" value={createForm.parallel_calls} onChange={onCreateChange} />
+
+//                   <div className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4 md:col-span-2">
+//                     <div className="font-semibold mb-3 flex items-center gap-2">
+//                       <Rocket className="h-4 w-4" /> Retry Policy
+//                     </div>
+//                     <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+//                       <label className="inline-flex items-center gap-2">
+//                         <input type="checkbox" name="retry_on_busy" checked={!!createForm.retry_on_busy} onChange={onCreateChange} />
+//                         <span className="text-sm text-slate-800">Retry on busy/no-answer</span>
+//                       </label>
+//                       <Field label="Busy retry delay (min)" name="busy_retry_delay_minutes" value={createForm.busy_retry_delay_minutes} onChange={onCreateChange} />
+//                       <Field label="Max attempts" name="max_attempts" value={createForm.max_attempts} onChange={onCreateChange} />
+//                     </div>
 //                   </div>
 //                 </div>
-//               )}
-
-//               {step === 6 && (
-//                 <div className="space-y-6">
-//                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-//                     <div className="bg-blue-50/60 rounded-xl p-6 border border-blue-100">
-//                       <div className="flex items-center gap-2 text-blue-900 font-bold text-lg mb-2">
-//                         <ListChecks className="w-5 h-5" /> Campaign Info
-//                       </div>
-//                       <div><span className="font-medium">Name:</span> {campaignName || "-"}</div>
-//                       <div><span className="font-medium">Assistant:</span> {assistantId || "-"}</div>
-//                       <div><span className="font-medium">List:</span> {selectedListObj?.name || "-"}</div>
-//                     </div>
-//                     <div className="bg-blue-50/60 rounded-xl p-6 border border-blue-100">
-//                       <div className="flex items-center gap-2 text-blue-900 font-bold text-lg mb-2">
-//                         <User className="w-5 h-5" /> Leads
-//                       </div>
-//                       <div><span className="font-medium">Selected:</span> {selectedCount}</div>
-//                       <div><span className="font-medium">Skipped:</span> {skippedCount}</div>
-//                     </div>
-//                     <div className="md:col-span-2 bg-blue-50/60 rounded-xl p-6 border border-blue-100">
-//                       <div className="flex items-center gap-2 text-blue-900 font-bold text-lg mb-2">
-//                         <Calendar className="w-5 h-5" /> Schedule
-//                       </div>
-//                       <div className="mb-1"><span className="font-medium">Days:</span> {callingDays.join(", ")}</div>
-//                       <div className="mb-1">
-//                         <span className="font-medium">Hours:</span> <Clock className="inline w-4 h-4 mx-1"/> {callingHours.start} - {callingHours.end}
-//                       </div>
-//                       <div className="mb-1"><span className="font-medium">Timezone:</span> <Globe2 className="inline w-4 h-4 mx-1"/> {timezone}</div>
-//                       <div className="mt-1">
-//                         <span className="font-medium">Dates:</span> {startDate} → {endDate}
-//                       </div>
-//                     </div>
-//                   </div>
-//                   <div className="flex justify-end gap-2">
-//                     <button onClick={goBack} className="px-4 py-2 rounded border border-gray-300 hover:bg-gray-50">
-//                       Back
-//                     </button>
-//                     <button
-//                       onClick={onSaveCampaign}
-//                       disabled={creating || !validateHours(callingHours.start, callingHours.end)}
-//                       className="px-6 py-2 rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60"
-//                     >
-//                       {creating ? (editingCampaign ? "Updating..." : "Creating...") : (editingCampaign ? "Update Campaign" : "Create Campaign")}
-//                     </button>
-//                   </div>
-//                 </div>
-//               )}
-//             </div>
-//           </Modal>
+//               </div>
+//             </motion.section>
+//           </>
 //         )}
+//       </AnimatePresence>
 
-//         {/* Add Lead Modal */}
-//         <Modal open={openAddLead} onClose={() => setOpenAddLead(false)}>
-//           <AddLeadForm
-//             onCancel={() => setOpenAddLead(false)}
-//             onSubmit={async (form) => {
-//               try {
-//                 await addLeadManual(form);
-//                 setOpenAddLead(false);
-//               } catch (e) {
-//                 notify("Failed to add lead", "error");
-//               }
-//             }}
-//           />
-//         </Modal>
+//       {/* Details Drawer */}
+//       <AnimatePresence>
+//         {showDetails && (
+//           <>
+//             <motion.div className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm" variants={overlay} initial="hidden" animate="show" exit="exit" onClick={() => setShowDetails(false)} />
+//             <motion.section
+//               className="fixed inset-y-0 right-0 z-50 w-full sm:w-[620px] md:w-[880px] bg-white shadow-2xl border-l border-slate-200 flex flex-col"
+//               initial={{ x: "100%" }}
+//               animate={{ x: 0, transition: { type: "spring", stiffness: 260, damping: 28 } }}
+//               exit={{ x: "100%", transition: { duration: 0.2 } }}
+//               aria-label="Campaign details"
+//             >
+//               {/* Topbar */}
+//               <div className="sticky top-0 bg-white/90 backdrop-blur border-b border-slate-200 p-4 flex items-center justify-between">
+//                 <div className="flex items-center gap-3">
+//                   <button onClick={() => setShowDetails(false)} className="grid h-9 w-9 place-items-center rounded-xl border border-slate-200 hover:bg-slate-50" aria-label="Close">
+//                     <X className="h-5 w-5" />
+//                   </button>
+//                   <div>
+//                     <h3 className="text-lg font-bold leading-tight">Campaign #{activeCampaign?.id}</h3>
+//                     <p className="text-xs text-slate-600">{unknown(activeCampaign?.name)}</p>
+//                   </div>
+//                 </div>
+//                 <div className="flex items-center gap-2">
+//                   <ButtonGhost onClick={() => downloadICS(activeCampaign.id, activeCampaign?.name)} icon={<Download className="h-4 w-4" />}>
+//                     ICS
+//                   </ButtonGhost>
+//                 </div>
+//               </div>
 
-//         {/* Create List Modal */}
-//         <Modal open={openCreateList} onClose={() => setOpenCreateList(false)}>
-//           <CreateListForm
-//             onCancel={() => setOpenCreateList(false)}
-//             onSubmit={async (name) => {
-//               try {
-//                 await createList(name);
-//                 setOpenCreateList(false);
-//               } catch (e) {
-//                 notify("Failed to create list", "error");
-//               }
-//             }}
-//           />
-//         </Modal>
+//               {/* Body */}
+//               <div className="flex-1 overflow-y-auto p-6">
+//                 {/* Info strip */}
+//                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+//                   <div className="rounded-2xl border border-slate-200 bg-white p-4">
+//                     <div className="text-xs uppercase tracking-wide text-slate-500 mb-1">Status</div>
+//                     <StatusChip status={details?.status || activeCampaign?.status} />
+//                   </div>
+//                   <div className="rounded-2xl border border-slate-200 bg-white p-4">
+//                     <div className="text-xs uppercase tracking-wide text-slate-500 mb-1">Window</div>
+//                     <div className="text-sm text-slate-800">
+//                       {details ? dowLabel(details.days_of_week) : dowLabel(activeCampaign?.days_of_week)} ·{" "}
+//                       {(details?.daily_start || activeCampaign?.daily_start || "09:00") + "–" + (details?.daily_end || activeCampaign?.daily_end || "18:00")}
+//                       <div className="text-slate-500">{details?.timezone || activeCampaign?.timezone || "Local"}</div>
+//                     </div>
+//                   </div>
+//                   <div className="rounded-2xl border border-slate-200 bg-white p-4">
+//                     <div className="text-xs uppercase tracking-wide text-slate-500 mb-1">Counts</div>
+//                     <div className="text-sm text-slate-800">
+//                       Total: {details?.totals?.total ?? activeCampaign?.counts?.total ?? "—"} · Done:{" "}
+//                       {details?.totals?.done ?? activeCampaign?.counts?.completed_or_failed ?? "—"}
+//                     </div>
+//                   </div>
+//                 </div>
 
-//         {/* Confirm Delete */}
-//         <Confirm
-//           open={confirmDelete.open}
-//           onClose={() => setConfirmDelete({ open: false, id: null })}
-//           onConfirm={() => deleteCampaign(confirmDelete.id)}
-//           message="Are you sure you want to delete this campaign? This action cannot be undone."
-//         />
-//       </div>
+//                 {/* Controls */}
+//                 <div className="mt-4 flex flex-wrap items-center gap-2">
+//                   {String(details?.status || activeCampaign?.status).toLowerCase() === "paused" ? (
+//                     <ButtonPrimary onClick={() => doResume(activeCampaign.id)} icon={<Play className="h-4 w-4" />}>
+//                       Resume
+//                     </ButtonPrimary>
+//                   ) : (
+//                     <ButtonPrimary onClick={() => doPause(activeCampaign.id)} icon={<Pause className="h-4 w-4" />}>
+//                       Pause
+//                     </ButtonPrimary>
+//                   )}
+//                   <ButtonGhost onClick={() => doStop(activeCampaign.id)} icon={<StopSquare className="h-4 w-4" />}>
+//                     Stop
+//                   </ButtonGhost>
+//                   <ButtonGhost onClick={() => doDelete(activeCampaign.id)} icon={<Trash2 className="h-4 w-4" />}>
+//                     Delete
+//                   </ButtonGhost>
+//                 </div>
+
+//                 {/* Schedule + Retry forms */}
+//                 <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+//                   <ScheduleForm details={details} onSubmit={(form) => updateSchedule(activeCampaign.id, form)} loading={detailsLoading} />
+//                   <RetryForm details={details} onSubmit={(form) => updateRetryPolicy(activeCampaign.id, form)} loading={detailsLoading} />
+//                 </div>
+
+//                 {/* Run now */}
+//                 <RunNowCard onRun={(n) => doRunNow(activeCampaign.id, n)} />
+//               </div>
+//             </motion.section>
+//           </>
+//         )}
+//       </AnimatePresence>
 //     </div>
 //   );
 // }
 
-// /* ---------------------------------------------
-//    Sub-Forms
-// ---------------------------------------------- */
-// function AddLeadForm({ onCancel, onSubmit }) {
-//   const [first_name, setFirst] = useState("");
-//   const [last_name, setLast] = useState("");
-//   const [email, setEmail] = useState("");
-//   const [mobile, setMobile] = useState("");
-//   const [salesforce_id, setSf] = useState("");
-//   const [custom1, setC1] = useState("");
-//   const [custom2, setC2] = useState("");
+// /* ─────────────────────────── Subcomponents ─────────────────────────── */
+
+// function RunNowCard({ onRun }) {
+//   const [n, setN] = useState(5);
+//   return (
+//     <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-4">
+//       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+//         <div className="font-semibold text-slate-800 flex items-center gap-2">
+//           <Rocket className="h-4 w-4" />
+//           Run Now
+//         </div>
+//         <div className="flex items-center gap-2">
+//           <input
+//             type="number"
+//             min={1}
+//             className="w-24 rounded-xl border border-slate-200 px-3 py-2 text-sm"
+//             value={n}
+//             onChange={(e) => setN(Number(e.target.value) || 5)}
+//           />
+//           <ButtonPrimary onClick={() => onRun(n)} icon={<Play className="h-4 w-4" />}>
+//             Trigger
+//           </ButtonPrimary>
+//         </div>
+//       </div>
+//       <p className="text-sm text-slate-600 mt-2">Immediately place a small batch of calls (ignores schedule window).</p>
+//     </div>
+//   );
+// }
+
+// function ScheduleForm({ details, onSubmit, loading }) {
+//   const [form, setForm] = useState({
+//     timezone: details?.timezone || "America/Los_Angeles",
+//     days_of_week: details?.days_of_week || [0, 1, 2, 3, 4],
+//     daily_start: details?.daily_start || "09:00",
+//     daily_end: details?.daily_end || "18:00",
+//     start_at: toInputDateTimeLocal(details?.start_at),
+//     end_at: toInputDateTimeLocal(details?.end_at),
+//   });
+//   useEffect(() => {
+//     setForm({
+//       timezone: details?.timezone || "America/Los_Angeles",
+//       days_of_week: details?.days_of_week || [0, 1, 2, 3, 4],
+//       daily_start: details?.daily_start || "09:00",
+//       daily_end: details?.daily_end || "18:00",
+//       start_at: toInputDateTimeLocal(details?.start_at),
+//       end_at: toInputDateTimeLocal(details?.end_at),
+//     });
+//   }, [details]);
+
+//   function onChange(e) {
+//     const { name, value } = e.target;
+//     setForm((f) => ({ ...f, [name]: value }));
+//   }
+//   function toggleDOW(d) {
+//     setForm((f) => {
+//       const has = f.days_of_week.includes(d);
+//       const days = has ? f.days_of_week.filter((x) => x !== d) : [...f.days_of_week, d];
+//       days.sort((a, b) => a - b);
+//       return { ...f, days_of_week: days };
+//     });
+//   }
 
 //   return (
-//     <div className="space-y-4">
-//       <h3 className="text-xl font-semibold text-blue-900">Add Lead</h3>
-//       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-//         <div>
-//           <label className="block text-sm text-blue-900 mb-1">First Name</label>
-//           <input value={first_name} onChange={(e)=>setFirst(e.target.value)} className="w-full rounded-lg px-3 py-2 border border-blue-200"/>
-//         </div>
-//         <div>
-//           <label className="block text-sm text-blue-900 mb-1">Last Name</label>
-//           <input value={last_name} onChange={(e)=>setLast(e.target.value)} className="w-full rounded-lg px-3 py-2 border border-blue-200"/>
-//         </div>
-//         <div>
-//           <label className="block text-sm text-blue-900 mb-1">Email</label>
-//           <input value={email} onChange={(e)=>setEmail(e.target.value)} className="w-full rounded-lg px-3 py-2 border border-blue-200"/>
-//         </div>
-//         <div>
-//           <label className="block text-sm text-blue-900 mb-1">Phone (digits only)</label>
-//           <input value={mobile} onChange={(e)=>setMobile(e.target.value)} className="w-full rounded-lg px-3 py-2 border border-blue-200"/>
-//         </div>
-//         <div>
-//           <label className="block text-sm text-blue-900 mb-1">Salesforce ID (optional)</label>
-//           <input value={salesforce_id} onChange={(e)=>setSf(e.target.value)} className="w-full rounded-lg px-3 py-2 border border-blue-200"/>
-//         </div>
-//         <div>
-//           <label className="block text-sm text-blue-900 mb-1">Custom 1</label>
-//           <input value={custom1} onChange={(e)=>setC1(e.target.value)} className="w-full rounded-lg px-3 py-2 border border-blue-200"/>
-//         </div>
-//         <div>
-//           <label className="block text-sm text-blue-900 mb-1">Custom 2</label>
-//           <input value={custom2} onChange={(e)=>setC2(e.target.value)} className="w-full rounded-lg px-3 py-2 border border-blue-200"/>
-//         </div>
+//     <div className="rounded-2xl border border-slate-200 bg-white p-4">
+//       <div className="font-semibold text-slate-800 mb-3 flex items-center gap-2">
+//         <Settings className="h-4 w-4" />
+//         Schedule
 //       </div>
-//       <div className="flex justify-end gap-2">
-//         <button onClick={onCancel} className="px-4 py-2 rounded border border-gray-300 hover:bg-gray-50">Cancel</button>
-//         <button
-//           onClick={()=>onSubmit({ first_name, last_name, email, mobile, salesforce_id, custom1, custom2 })}
-//           className="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700"
-//         >
-//           Save Lead
-//         </button>
+//       <div className="grid grid-cols-1 gap-3">
+//         <label className="block">
+//           <span className="mb-1 block text-sm font-semibold text-slate-700">Timezone (IANA)</span>
+//           <select
+//             name="timezone"
+//             value={form.timezone}
+//             onChange={onChange}
+//             className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-slate-900 outline-none ring-1 ring-white/70 focus:ring-2 focus:ring-cyan-400/40"
+//           >
+//             {TIMEZONES.map((tz) => (
+//               <option key={tz.value} value={tz.value}>
+//                 {tz.label}
+//               </option>
+//             ))}
+//           </select>
+//         </label>
+//         <div>
+//           <div className="text-sm text-slate-700 mb-2">Days of week</div>
+//           <div className="flex flex-wrap gap-2">
+//             {[0, 1, 2, 3, 4, 5, 6].map((d) => (
+//               <button
+//                 key={d}
+//                 type="button"
+//                 onClick={() => toggleDOW(d)}
+//                 className={cx(
+//                   "px-3 py-1.5 rounded-xl border text-sm",
+//                   form.days_of_week.includes(d) ? "border-blue-400 bg-blue-50 text-blue-700" : "border-slate-200 bg-white text-slate-700"
+//                 )}
+//               >
+//                 {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"][d]}
+//               </button>
+//             ))}
+//           </div>
+//         </div>
+//         <div className="grid grid-cols-2 gap-3">
+//           <Field label="Daily start" name="daily_start" value={form.daily_start} onChange={onChange} placeholder="HH:MM" />
+//           <Field label="Daily end" name="daily_end" value={form.daily_end} onChange={onChange} placeholder="HH:MM" />
+//         </div>
+//         <div className="grid grid-cols-2 gap-3">
+//           <Field label="Start at (optional)" name="start_at" type="datetime-local" value={form.start_at} onChange={onChange} />
+//           <Field label="End at (optional)" name="end_at" type="datetime-local" value={form.end_at} onChange={onChange} />
+//         </div>
+//         <div className="flex justify-end">
+//           <ButtonPrimary onClick={() => onSubmit(form)} disabled={loading}>
+//             Save Schedule
+//           </ButtonPrimary>
+//         </div>
 //       </div>
 //     </div>
 //   );
 // }
 
-// function CreateListForm({ onCancel, onSubmit }) {
-//   const [name, setName] = useState("");
+// function RetryForm({ details, onSubmit, loading }) {
+//   const [form, setForm] = useState({
+//     retry_on_busy: details?.retry_on_busy ?? true,
+//     busy_retry_delay_minutes: details?.busy_retry_delay_minutes ?? 15,
+//     max_attempts: details?.max_attempts ?? 3,
+//   });
+//   useEffect(() => {
+//     setForm({
+//       retry_on_busy: details?.retry_on_busy ?? true,
+//       busy_retry_delay_minutes: details?.busy_retry_delay_minutes ?? 15,
+//       max_attempts: details?.max_attempts ?? 3,
+//     });
+//   }, [details]);
+
+//   function onChange(e) {
+//     const { name, value, type, checked } = e.target;
+//     setForm((f) => ({ ...f, [name]: type === "checkbox" ? checked : value }));
+//   }
+
 //   return (
-//     <div className="space-y-4">
-//       <h3 className="text-xl font-semibold text-blue-900">Create List</h3>
-//       <div>
-//         <label className="block text-sm text-blue-900 mb-1">List Name</label>
-//         <input
-//           value={name}
-//           onChange={(e)=>setName(e.target.value)}
-//           placeholder="e.g., September Leads"
-//           className="w-full rounded-lg px-3 py-2 border border-blue-200"
-//         />
+//     <div className="rounded-2xl border border-slate-200 bg-white p-4">
+//       <div className="font-semibold text-slate-800 mb-3 flex items-center gap-2">
+//         <Rocket className="h-4 w-4" />
+//         Retry Policy
 //       </div>
-//       <div className="flex justify-end gap-2">
-//         <button onClick={onCancel} className="px-4 py-2 rounded border border-gray-300 hover:bg-gray-50">Cancel</button>
-//         <button
-//           onClick={()=> name.trim() && onSubmit(name.trim())}
-//           className="px-4 py-2 rounded bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-60"
-//           disabled={!name.trim()}
-//         >
-//           Create
-//         </button>
+//       <div className="grid grid-cols-1 gap-3">
+//         <label className="inline-flex items-center gap-2">
+//           <input type="checkbox" name="retry_on_busy" checked={!!form.retry_on_busy} onChange={onChange} />
+//           <span className="text-sm text-slate-800">Retry on busy / no-answer</span>
+//         </label>
+//         <Field label="Busy retry delay (min)" name="busy_retry_delay_minutes" value={form.busy_retry_delay_minutes} onChange={onChange} />
+//         <Field label="Max attempts" name="max_attempts" value={form.max_attempts} onChange={onChange} />
+//         <div className="flex justify-end">
+//           <ButtonPrimary onClick={() => onSubmit(form)} disabled={loading}>
+//             Save Retry Policy
+//           </ButtonPrimary>
+//         </div>
 //       </div>
 //     </div>
 //   );
 // }
 
+// /* Lead MultiSelect for ONLY/SKIP */
+// function LeadMultiSelect({ leads, mode, search, selectedIds, onChange }) {
+//   const [page, setPage] = useState(1);
+//   const pageSize = 12;
 
-// Campain.jsx
-// Campain.jsx (fixed)
-// Campain.jsx
-import React, { useEffect, useMemo, useState } from "react";
+//   const filtered = useMemo(() => {
+//     const q = (search || "").toLowerCase().trim();
+//     if (!q) return leads;
+//     return leads.filter((l) => {
+//       const name = `${l.first_name || ""} ${l.last_name || ""}`.toLowerCase();
+//       return (
+//         name.includes(q) ||
+//         (l.email || "").toLowerCase().includes(q) ||
+//         (l.mobile || "").toLowerCase().includes(q)
+//       );
+//     });
+//   }, [leads, search]);
+
+//   const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+//   useEffect(() => {
+//     if (page > totalPages) setPage(totalPages);
+//   }, [page, totalPages]);
+
+//   const start = (page - 1) * pageSize;
+//   const end = start + pageSize;
+//   const slice = filtered.slice(start, end);
+
+//   function toggle(id) {
+//     const has = selectedIds.includes(id);
+//     if (has) onChange(selectedIds.filter((x) => x !== id));
+//     else onChange([...selectedIds, id]);
+//   }
+
+//   return (
+//     <div className="rounded-xl border border-slate-200 bg-white">
+//       <div className="max-h-72 overflow-y-auto divide-y divide-slate-100">
+//         {slice.length === 0 ? (
+//           <div className="p-4 text-sm text-slate-600">No leads match your search.</div>
+//         ) : (
+//           slice.map((l) => {
+//             const nameFull = `${l.first_name || ""} ${l.last_name || ""}`.trim() || "Unknown";
+//             return (
+//               <label key={l.id} className="flex items-center gap-3 p-3 hover:bg-slate-50 cursor-pointer">
+//                 <input type="checkbox" checked={selectedIds.includes(l.id)} onChange={() => toggle(l.id)} />
+//                 <div className="min-w-0">
+//                   <div className="font-medium text-slate-900 text-sm">{nameFull}</div>
+//                   <div className="text-xs text-slate-600 break-all">
+//                     {(l.email || "—") + " · " + (l.mobile || "—")}
+//                   </div>
+//                 </div>
+//                 {l.dnc ? <Chip tone="red">DNC</Chip> : <Chip tone="green">OK</Chip>}
+//               </label>
+//             );
+//           })
+//         )}
+//       </div>
+//       {filtered.length > pageSize && (
+//         <div className="flex items-center justify-between p-2">
+//           <span className="text-xs text-slate-600">
+//             Showing {Math.min(end, filtered.length)} of {filtered.length}
+//           </span>
+//           <div className="flex items-center gap-2">
+//             <PagerButton disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>
+//               <ChevronLeft className="h-3.5 w-3.5" /> Prev
+//             </PagerButton>
+//             <span className="text-xs text-slate-700">
+//               {page}/{totalPages}
+//             </span>
+//             <PagerButton disabled={page >= totalPages} onClick={() => setPage((p) => Math.min(totalPages, p + 1))}>
+//               Next <ChevronRight className="h-3.5 w-3.5" />
+//             </PagerButton>
+//           </div>
+//         </div>
+//       )}
+//       <div className="p-3 border-t border-slate-200 text-xs text-slate-700">
+//         Mode: <strong>{mode}</strong> · Selected: <strong>{selectedIds.length}</strong>
+//       </div>
+//     </div>
+//   );
+// }
+
+// /* Helpers / small UI bits */
+// function dowLabel(days) {
+//   const map = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+//   const set = new Set(Array.isArray(days) ? days : []);
+//   if (set.size === 5 && [0, 1, 2, 3, 4].every((d) => set.has(d))) return "Mon–Fri";
+//   if (set.size === 7) return "Every day";
+//   return Array.from(set)
+//     .sort((a, b) => a - b)
+//     .map((d) => map[d] || "?")
+//     .join(", ");
+// }
+
+// function setSort(nextKey, setKey, setDir) {
+//   setKey((prevKey) => {
+//     if (prevKey === nextKey) {
+//       setDir((d) => (d === "asc" ? "desc" : "asc"));
+//       return prevKey;
+//     } else {
+//       setDir(nextKey === "created_at" ? "desc" : "asc");
+//       return nextKey;
+//     }
+//   });
+// }
+
+// function ButtonPrimary({ children, onClick, disabled, icon, type = "button" }) {
+//   return (
+//     <motion.button
+//       whileTap={!disabled ? { scale: 0.98 } : undefined}
+//       type={type}
+//       onClick={onClick}
+//       disabled={disabled}
+//       className={cx(
+//         "inline-flex items-center gap-2 rounded-2xl px-3.5 py-2 font-semibold text-white transition",
+//         "bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 active:from-blue-700 active:to-cyan-700",
+//         "shadow-[0_8px_24px_-12px_rgba(37,99,235,0.55)]",
+//         "disabled:opacity-60 disabled:cursor-not-allowed"
+//       )}
+//     >
+//       {icon}
+//       <span className="whitespace-nowrap">{children}</span>
+//     </motion.button>
+//   );
+// }
+// function ButtonGhost({ children, onClick, icon, type = "button" }) {
+//   return (
+//     <motion.button
+//       whileTap={{ scale: 0.98 }}
+//       type={type}
+//       onClick={onClick}
+//       className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-3.5 py-2 font-medium text-slate-800 ring-1 ring-white/70 transition hover:bg-slate-50"
+//     >
+//       {icon}
+//       <span className="whitespace-nowrap">{children}</span>
+//     </motion.button>
+//   );
+// }
+// function PagerButton({ children, disabled, onClick }) {
+//   return (
+//     <motion.button
+//       whileTap={!disabled ? { scale: 0.98 } : undefined}
+//       disabled={disabled}
+//       onClick={onClick}
+//       className={cx(
+//         "inline-flex items-center gap-2 rounded-2xl border px-3.5 py-2 text-sm transition",
+//         disabled ? "cursor-not-allowed border-slate-200 text-slate-400 bg-white" : "border-slate-300 bg-white text-slate-800 hover:bg-slate-50"
+//       )}
+//     >
+//       {children}
+//     </motion.button>
+//   );
+// }
+// function Th({ children, sortKey, sortBy, sortDir, onSort }) {
+//   const active = sortBy === sortKey;
+//   return (
+//     <th className={cx("px-5 py-3 font-semibold select-none cursor-pointer", active && "text-slate-900")} onClick={() => onSort(sortKey)} title="Sort">
+//       <span className="inline-flex items-center gap-1">
+//         {children}
+//         <span className={cx("text-xs", active ? "opacity-100" : "opacity-20")}>{active ? (sortDir === "asc" ? "▲" : "▼") : "▲"}</span>
+//       </span>
+//     </th>
+//   );
+// }
+// function RowSkeleton({ rows = 6, cols = 6 }) {
+//   return (
+//     <>
+//       {Array.from({ length: rows }).map((_, r) => (
+//         <tr key={r} className="animate-pulse">
+//           {Array.from({ length: cols }).map((__, c) => (
+//             <td key={c} className="px-5 py-3">
+//               <div className="h-4 w-28 rounded bg-slate-100" />
+//             </td>
+//           ))}
+//         </tr>
+//       ))}
+//     </>
+//   );
+// }
+// function Field({ label, name, value, onChange, type = "text", placeholder, className }) {
+//   return (
+//     <label className={cx("block", className)}>
+//       <span className="mb-1 block text-sm font-semibold text-slate-700">{label}</span>
+//       <input
+//         type={type}
+//         name={name}
+//         value={value ?? ""}
+//         onChange={onChange}
+//         placeholder={placeholder}
+//         className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-slate-900 placeholder-slate-400 outline-none ring-1 ring-white/70 focus:ring-2 focus:ring-cyan-400/40 focus:border-cyan-300"
+//       />
+//     </label>
+//   );
+// }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+"use client"
+
+import { useEffect, useMemo, useRef, useState } from "react"
+import { toast } from "react-toastify"
 import {
-  Plus, Clock, Calendar, User, ListChecks, Globe2,
-  Trash2, Edit3, Loader2, ChevronRight, X
-} from "lucide-react";
+  Search,
+  RefreshCw,
+  X,
+  Loader2,
+  Users,
+  CheckCircle2,
+  XCircle,
+  Plus,
+  Play,
+  Pause,
+  Square as StopSquare, // ✅ correct icon
+  Trash2,
+  Eye,
+  Download,
+  Settings,
+  Rocket,
+  ChevronLeft,
+  ChevronRight,
+  Check,
+} from "lucide-react"
+import { motion, AnimatePresence } from "framer-motion"
 
-/* ============ API CONFIG (MATCHES YOUR Assistants page) ============ */
-const API_URL = import.meta.env?.VITE_API_URL || "http://localhost:8000";
-const BASE = `${API_URL}/api`;
-const ENDPOINTS = {
-  assistants: `${BASE}/get-assistants`,
-  lists: `${BASE}/files`,
-  leadsByList: (id) => `${BASE}/leads?file_id=${encodeURIComponent(id)}`,
-  addLead: `${BASE}/add_manually_lead`,
-  createList: `${BASE}/create-list`,
-};
+/* ──────────────────────────────────────────────────────────────────────────
+ * Config
+ * ────────────────────────────────────────────────────────────────────────── */
+const API_URL = import.meta.env?.VITE_API_URL || "http://localhost:8000"
+const API_PREFIX = import.meta.env?.VITE_API_PREFIX || "/api"
 
-const getAuthHeaders = () => {
-  const t = typeof window !== "undefined" ? localStorage.getItem("token") : null;
-  return t ? { Authorization: `Bearer ${t}` } : {};
-};
+// Campaign endpoints (aligned to your FastAPI router)
+const EP = {
+  LIST: `${API_URL}${API_PREFIX}/campaigns/campaigns`,
+  CREATE: `${API_URL}${API_PREFIX}/campaigns/campaigns`,
+  DETAIL: (id) => `${API_URL}${API_PREFIX}/campaigns/campaigns/${id}`,
+  SCHEDULE: (id) => `${API_URL}${API_PREFIX}/campaigns/campaigns/${id}/schedule`,
+  RETRY: (id) => `${API_URL}${API_PREFIX}/campaigns/campaigns/${id}/retry-policy`,
+  PAUSE: (id) => `${API_URL}${API_PREFIX}/campaigns/campaigns/${id}/pause`,
+  RESUME: (id) => `${API_URL}${API_PREFIX}/campaigns/campaigns/${id}/resume`,
+  STOP: (id) => `${API_URL}${API_PREFIX}/campaigns/campaigns/${id}/stop`,
+  RUN_NOW: (id) => `${API_URL}${API_PREFIX}/campaigns/campaigns/${id}/run-now`,
+  ICS: (id) => `${API_URL}${API_PREFIX}/campaigns/campaigns/${id}/calendar.ics`,
+  DELETE: (id) => `${API_URL}${API_PREFIX}/campaigns/campaigns/${id}`,
+}
 
-/* ============ UI THEME ============ */
-const neon = {
-  card:
-    "bg-white/90 backdrop-blur border border-blue-100 shadow-[0_0_30px_rgba(59,130,246,0.15)] rounded-2xl",
-  btnPrimary:
-    "bg-blue-600 hover:bg-blue-700 text-white shadow-[0_0_15px_rgba(59,130,246,0.45)] hover:shadow-[0_0_22px_rgba(59,130,246,0.65)]",
-  btnGhost:
-    "bg-white hover:bg-blue-50 text-blue-700 border border-blue-200",
-  pillOn:
-    "bg-blue-600 text-white border-blue-600",
-  pillOff:
-    "bg-white text-blue-700 border-blue-600",
-  glowText: "text-blue-700 drop-shadow-[0_0_12px_rgba(59,130,246,0.35)]",
-};
+// Resource endpoints
+const RESOURCES = {
+  FILES: `${API_URL}${API_PREFIX}/files`, // should return [{id, name, ...}] or {items:[...]}
+  ASSISTANTS: `${API_URL}${API_PREFIX}/get-assistants`, // per your requirement
+  LEADS: (fileId) => `${API_URL}${API_PREFIX}/leads${fileId ? `?file_id=${fileId}` : ""}`, // [{id, first_name, ...}]
+}
 
-const dayLabels = [
-  { key: "Mon", label: "Mon" },
-  { key: "Tue", label: "Tue" },
-  { key: "Wed", label: "Wed" },
-  { key: "Thu", label: "Thu" },
-  { key: "Fri", label: "Fri" },
-];
+/* Utilities */
+function cx(...arr) {
+  return arr.filter(Boolean).join(" ")
+}
+const unknown = (v) => {
+  if (v === undefined || v === null) return "Unknown"
+  const s = String(v).trim()
+  return s === "" || s.toLowerCase() === "null" || s.toLowerCase() === "undefined" ? "Unknown" : s
+}
+function useDebounce(value, delay = 250) {
+  const [debounced, setDebounced] = useState(value)
+  useEffect(() => {
+    const t = setTimeout(() => setDebounced(value), delay)
+    return () => clearTimeout(t)
+  }, [value, delay])
+  return debounced
+}
+function fmtDT(d) {
+  try {
+    const dt = new Date(d)
+    if (isNaN(dt.getTime())) return "Unknown"
+    return dt.toLocaleString()
+  } catch {
+    return "Unknown"
+  }
+}
+function toInputDateTimeLocal(value) {
+  if (!value) return ""
+  const d = new Date(value)
+  if (isNaN(d.getTime())) return ""
+  const yyyy = d.getFullYear()
+  const mm = String(d.getMonth() + 1).padStart(2, "0")
+  const dd = String(d.getDate()).padStart(2, "0")
+  const hh = String(d.getHours()).padStart(2, "0")
+  const mi = String(d.getMinutes()).padStart(2, "0")
+  return `${yyyy}-${mm}-${dd}T${hh}:${mi}`
+}
+function fromInputDateTimeLocal(s) {
+  if (!s) return null
+  const d = new Date(s)
+  return isNaN(d.getTime()) ? null : d.toISOString()
+}
 
-const timezones = [
+/* Motion variants */
+const fadeUp = {
+  hidden: { opacity: 0, y: 8 },
+  show: { opacity: 1, y: 0, transition: { duration: 0.24, ease: "easeOut" } },
+}
+const stagger = { show: { transition: { staggerChildren: 0.05 } } }
+const overlay = {
+  hidden: { opacity: 0 },
+  show: { opacity: 1, transition: { duration: 0.18 } },
+  exit: { opacity: 0, transition: { duration: 0.12 } },
+}
+const slideInFromBottom = {
+  hidden: { opacity: 0, y: 20, scale: 0.95 },
+  show: { opacity: 1, y: 0, scale: 1, transition: { type: "spring", stiffness: 300, damping: 30, duration: 0.4 } },
+  exit: { opacity: 0, y: 20, scale: 0.95, transition: { duration: 0.2 } },
+}
+const modalVariants = {
+  hidden: { opacity: 0, scale: 0.8, y: 50 },
+  show: { opacity: 1, scale: 1, y: 0, transition: { type: "spring", stiffness: 300, damping: 25, duration: 0.5 } },
+  exit: { opacity: 0, scale: 0.8, y: 50, transition: { duration: 0.3 } },
+}
+const stepTransition = {
+  hidden: { opacity: 0, x: 20 },
+  show: { opacity: 1, x: 0, transition: { duration: 0.3, ease: "easeOut" } },
+  exit: { opacity: 0, x: -20, transition: { duration: 0.2 } },
+}
+
+/* Pill chip */
+function Chip({ children, tone = "slate" }) {
+  const tones = {
+    slate: "bg-slate-100 text-slate-700 ring-slate-200",
+    green: "bg-emerald-100 text-emerald-700 ring-emerald-200",
+    red: "bg-rose-100 text-rose-700 ring-rose-200",
+    blue: "bg-blue-100 text-blue-700 ring-blue-200",
+    orange: "bg-orange-100 text-orange-700 ring-orange-200",
+    purple: "bg-purple-100 text-purple-700 ring-purple-200",
+  }
+  return (
+    <motion.span
+      initial={{ opacity: 0, scale: 0.8 }}
+      animate={{ opacity: 1, scale: 1 }}
+      transition={{ duration: 0.2 }}
+      className={cx("inline-flex items-center rounded-full px-2.5 py-1 text-xs ring-1", tones[tone] || tones.slate)}
+    >
+      {children}
+    </motion.span>
+  )
+}
+
+/* Stat card */
+function StatCard({ label, value, Icon, tone = "blue" }) {
+  const ring = tone === "blue" ? "ring-blue-200/60" : tone === "cyan" ? "ring-cyan-200/60" : "ring-slate-200/60"
+  const bg =
+    tone === "blue"
+      ? "from-blue-600 to-cyan-500"
+      : tone === "cyan"
+      ? "from-cyan-500 to-blue-600"
+      : "from-slate-500 to-slate-700"
+  return (
+    <motion.div initial={{ y: 8, opacity: 0 }} animate={{ y: 0, opacity: 1 }} className="relative rounded-3xl border border-slate-200 bg-white p-5 shadow-xl">
+      <div className="relative z-10 flex items-center gap-3">
+        <div className={`flex h-12 w-12 items-center justify-center rounded-2xl bg-gradient-to-br ${bg} text-white shadow-inner ring-1 ${ring}`}>
+          <Icon className="h-7 w-7" />
+        </div>
+        <div>
+          <div className="text-xs uppercase tracking-wider text-slate-500">{label}</div>
+          <div className="text-2xl font-black text-slate-900">{value}</div>
+        </div>
+      </div>
+    </motion.div>
+  )
+}
+
+/* Status chip */
+function StatusChip({ status }) {
+  const s = String(status || "").toLowerCase()
+  if (s === "scheduled") return <Chip tone="blue">Scheduled</Chip>
+  if (s === "running") return <Chip tone="green">Running</Chip>
+  if (s === "paused") return <Chip tone="orange">Paused</Chip>
+  if (s === "stopped") return <Chip tone="red">Stopped</Chip>
+  if (s === "completed") return <Chip tone="purple">Completed</Chip>
+  if (s === "draft") return <Chip tone="slate">Draft</Chip>
+  return <Chip tone="slate">{unknown(status)}</Chip>
+}
+
+/* Timezones (added Asia/Karachi for your locale) */
+const TIMEZONES = [
   { value: "UTC", label: "UTC" },
   { value: "America/New_York", label: "America/New_York" },
   { value: "America/Chicago", label: "America/Chicago" },
   { value: "America/Denver", label: "America/Denver" },
   { value: "America/Los_Angeles", label: "America/Los_Angeles" },
-  // ... (keep the rest of your timezone list if you like)
-];
+  { value: "America/Phoenix", label: "America/Phoenix" },
+  { value: "Europe/London", label: "Europe/London" },
+  { value: "Europe/Berlin", label: "Europe/Berlin" },
+  { value: "Europe/Paris", label: "Europe/Paris" },
+  { value: "Asia/Karachi", label: "Asia/Karachi" },
+  { value: "Asia/Kolkata", label: "Asia/Kolkata" },
+  { value: "Asia/Singapore", label: "Asia/Singapore" },
+  { value: "Asia/Tokyo", label: "Asia/Tokyo" },
+  { value: "Asia/Dubai", label: "Asia/Dubai" },
+  { value: "Australia/Sydney", label: "Australia/Sydney" },
+]
 
-/* ============ UTIL ============ */
-const cx = (...arr) => arr.filter(Boolean).join(" ");
-const fmtDate = (iso) => new Date(iso).toLocaleDateString();
+/* ──────────────────────────────────────────────────────────────────────────
+ * Page: Campaigns
+ * ────────────────────────────────────────────────────────────────────────── */
+export default function CampaignsPage() {
+  const token = useRef(localStorage.getItem("token") || null)
 
-/* ============ LOCAL STORAGE "CAMPAIGN" CRUD ============ */
-const readLocalCampaigns = () => {
-  try {
-    const raw = localStorage.getItem("campaigns");
-    return raw ? JSON.parse(raw) : [];
-  } catch {
-    return [];
-  }
-};
-const writeLocalCampaigns = (arr) =>
-  localStorage.setItem("campaigns", JSON.stringify(arr));
+  // Data & UI state
+  const [campaigns, setCampaigns] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
 
-const createLocalCampaign = (payload) => {
-  const arr = readLocalCampaigns();
-  const id = Date.now();
-  const out = {
-    id,
-    created_at: new Date().toISOString(),
-    is_active: false,
-    ...payload,
-  };
-  arr.unshift(out);
-  writeLocalCampaigns(arr);
-  return out;
-};
-const updateLocalCampaign = (id, patch) => {
-  const arr = readLocalCampaigns().map((c) =>
-    c.id === id ? { ...c, ...patch } : c
-  );
-  writeLocalCampaigns(arr);
-};
-const deleteLocalCampaign = (id) => {
-  const arr = readLocalCampaigns().filter((c) => c.id !== id);
-  writeLocalCampaigns(arr);
-};
-const getLocalCampaignById = (id) =>
-  readLocalCampaigns().find((c) => c.id === id);
+  const [files, setFiles] = useState([])
+  const [assistants, setAssistants] = useState([])
+  const [leadsForFile, setLeadsForFile] = useState([])
+  const [leadsLoading, setLeadsLoading] = useState(false)
 
-/* ============ FETCH HELPERS (send token + JSON) ============ */
-async function getJSON(url) {
-  const res = await fetch(url, {
-    method: "GET",
-    headers: {
-      Accept: "application/json",
-      "Content-Type": "application/json",
-      ...getAuthHeaders(),
-    },
-  });
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(text || `HTTP ${res.status}`);
-  }
-  return res.json();
-}
-async function postJSON(url, body) {
-  const res = await fetch(url, {
-    method: "POST",
-    headers: {
-      Accept: "application/json",
-      "Content-Type": "application/json",
-      ...getAuthHeaders(),
-    },
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) {
-    const text = await res.text().catch(() => "");
-    throw new Error(text || `HTTP ${res.status}`);
-  }
-  return res.json();
-}
+  const [query, setQuery] = useState("")
+  const debouncedQuery = useDebounce(query, 250)
 
-/* ============ SMALL UI PIECES ============ */
-const Toggle = ({ checked, onChange }) => (
-  <button
-    onClick={() => onChange(!checked)}
-    className={cx(
-      "w-12 h-6 rounded-full p-1 transition-all",
-      checked ? "bg-blue-600 shadow-[0_0_16px_rgba(59,130,246,0.65)]" : "bg-blue-200"
-    )}
-  >
-    <div
-      className={cx(
-        "w-4 h-4 bg-white rounded-full transition-transform",
-        checked ? "translate-x-6" : "translate-x-0"
-      )}
-    />
-  </button>
-);
+  // Sorting & paging
+  const [sortBy, setSortBy] = useState("created_at")
+  const [sortDir, setSortDir] = useState("desc")
+  const [page, setPage] = useState(1)
+  const [pageSize, setPageSize] = useState(10)
 
-const Badge = ({ children }) => (
-  <span className="text-xs px-2 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200">
-    {children}
-  </span>
-);
+  const [showCreate, setShowCreate] = useState(false)
+  const [step, setStep] = useState(1) // 1-6
+  const [creating, setCreating] = useState(false)
+  const [createForm, setCreateForm] = useState({
+    name: "",
+    file_id: "",
+    assistant_id: "",
+    selection_mode: "ALL",
+    include_lead_ids: [],
+    exclude_lead_ids: [],
+    timezone: "America/Los_Angeles",
+    days_of_week: [0, 1, 2, 3, 4],
+    daily_start: "09:00",
+    daily_end: "18:00",
+    start_at: "",
+    end_at: "",
+    calls_per_minute: 10,
+    parallel_calls: 2,
+    retry_on_busy: true,
+    busy_retry_delay_minutes: 15,
+    max_attempts: 3,
+    description: "", // optional (not sent to backend)
+  })
+  const [leadSearch, setLeadSearch] = useState("")
 
-const EmptyState = ({ title, subtitle }) => (
-  <div className={cx(neon.card, "p-8 text-center")}>
-    <div className="text-lg font-semibold text-blue-800 mb-1">{title}</div>
-    <div className="text-blue-500">{subtitle}</div>
-  </div>
-);
+  // Details drawer
+  const [showDetails, setShowDetails] = useState(false)
+  const [activeCampaign, setActiveCampaign] = useState(null)
+  const [detailsLoading, setDetailsLoading] = useState(false)
+  const [details, setDetails] = useState(null)
 
-/* ============ MODALS ============ */
-const Modal = ({ open, onClose, children, maxWidth = "max-w-3xl" }) => {
-  if (!open) return null;
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div
-        className="absolute inset-0 bg-gradient-to-br from-blue-900/50 to-blue-700/40 backdrop-blur-sm"
-        onClick={onClose}
-      />
-      <div
-        className={cx(
-          neon.card,
-          "relative w-[92vw] md:w-auto",
-          maxWidth,
-          "p-6 md:p-8"
-        )}
-      >
-        <button
-          onClick={onClose}
-          className="absolute top-4 right-4 text-blue-600 hover:text-blue-800"
-          aria-label="Close"
-        >
-          <X className="w-5 h-5" />
-        </button>
-        {children}
-      </div>
-    </div>
-  );
-};
-
-const ConfirmModal = ({ open, onClose, onConfirm, children }) => (
-  <Modal open={open} onClose={onClose} maxWidth="max-w-md">
-    <div className="text-blue-900 font-semibold text-lg mb-3">Confirm</div>
-    <div className="text-blue-700 mb-6">{children}</div>
-    <div className="flex gap-3 justify-end">
-      <button onClick={onClose} className={cx(neon.btnGhost, "px-4 py-2 rounded-lg")}>
-        Cancel
-      </button>
-      <button
-        onClick={() => {
-          onConfirm();
-          onClose();
-        }}
-        className={cx(neon.btnPrimary, "px-4 py-2 rounded-lg")}
-      >
-        Yes, proceed
-      </button>
-    </div>
-  </Modal>
-);
-
-const AddLeadModal = ({ open, onClose, onSubmit, fileId }) => {
-  const [first_name, setFirst] = useState("");
-  const [last_name, setLast] = useState("");
-  const [email, setEmail] = useState("");
-  const [mobile, setMobile] = useState("");
-  const [salesforce_id, setSalesforceId] = useState("");
-  const [custom0, setCustom0] = useState("");
-  const [custom1, setCustom1] = useState("");
-  const valid = first_name && mobile && email;
-
-  const handle = async () => {
-    const payload = {
-      first_name,
-      last_name,
-      email,
-      mobile,
-      salesforce_id,
-      add_date: new Date().toISOString(),
-      file_id: fileId,
-      other_data:
-        custom0 || custom1
-          ? { Custom_0: custom0, Custom_1: custom1 }
-          : null,
-    };
-    await onSubmit(payload);
-    setFirst(""); setLast(""); setEmail(""); setMobile(""); setSalesforceId("");
-    setCustom0(""); setCustom1("");
-  };
-
-  return (
-    <Modal open={open} onClose={onClose}>
-      <div className="text-2xl font-bold mb-1 text-blue-700">Add Lead</div>
-      <div className="text-sm text-blue-500 mb-6">
-        This will add the lead to the currently selected list.
-      </div>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Field label="First name">
-          <input value={first_name} onChange={(e)=>setFirst(e.target.value)} className="input" placeholder="Jane" />
-        </Field>
-        <Field label="Last name">
-          <input value={last_name} onChange={(e)=>setLast(e.target.value)} className="input" placeholder="Doe" />
-        </Field>
-        <Field label="Email">
-          <input type="email" value={email} onChange={(e)=>setEmail(e.target.value)} className="input" placeholder="jane@company.com" />
-        </Field>
-        <Field label="Mobile (10 digits)">
-          <input value={mobile} onChange={(e)=>setMobile(e.target.value)} className="input" placeholder="5551234567" />
-        </Field>
-        <Field label="Salesforce ID (optional)">
-          <input value={salesforce_id} onChange={(e)=>setSalesforceId(e.target.value)} className="input" placeholder="SF-001" />
-        </Field>
-        <div className="grid grid-cols-2 gap-4">
-          <Field label="Custom_0">
-            <input value={custom0} onChange={(e)=>setCustom0(e.target.value)} className="input" placeholder="Any text" />
-          </Field>
-          <Field label="Custom_1">
-            <input value={custom1} onChange={(e)=>setCustom1(e.target.value)} className="input" placeholder="Any text" />
-          </Field>
-        </div>
-      </div>
-      <div className="flex justify-end gap-3 mt-6">
-        <button onClick={onClose} className={cx(neon.btnGhost, "px-4 py-2 rounded-lg")}>
-          Close
-        </button>
-        <button
-          disabled={!valid}
-          onClick={handle}
-          className={cx(neon.btnPrimary, "px-4 py-2 rounded-lg disabled:opacity-50")}
-        >
-          Add Lead
-        </button>
-      </div>
-    </Modal>
-  );
-};
-
-const Field = ({ label, children }) => (
-  <label className="text-sm text-blue-800">
-    <span className="block mb-1">{label}</span>
-    <div className="rounded-lg border border-blue-200 focus-within:ring-2 focus-within:ring-blue-200 shadow-[inset_0_0_0_999px_rgba(255,255,255,0.2)]">
-      {React.cloneElement(children, {
-        className:
-          "w-full px-3 py-2 bg-transparent outline-none",
-      })}
-    </div>
-  </label>
-);
-
-/* ============ MAIN ============ */
-const CampaignRowStats = ({ campaign }) => {
-  const selectedCount = useMemo(
-    () => (campaign?.selected_lead_ids?.length ?? 0),
-    [campaign]
-  );
-  const skippedCount = useMemo(
-    () => (campaign?.skipped_leads?.length ?? 0),
-    [campaign]
-  );
-  return (
-    <div className="flex items-center justify-center gap-3">
-      <Badge>Selected: {selectedCount}</Badge>
-      <Badge>Skipped: {skippedCount}</Badge>
-      <Badge>Days: {campaign.calling_day?.split(",").length || 0}</Badge>
-    </div>
-  );
-};
-
-function Stepper({ step }) {
-  const steps = ["Details", "List", "Leads", "Follow-up", "Schedule", "Summary"];
-  return (
-    <div className="flex items-center justify-between mb-6">
-      {steps.map((s, i) => {
-        const idx = i + 1;
-        const active = step === idx;
-        const done = step > idx;
-        return (
-          <div key={s} className="flex items-center gap-2">
-            <div
-              className={cx(
-                "w-8 h-8 rounded-full grid place-items-center text-sm font-semibold border",
-                active
-                  ? "bg-blue-600 text-white border-blue-600 shadow-[0_0_16px_rgba(59,130,246,0.65)]"
-                  : done
-                  ? "bg-blue-100 text-blue-900 border-blue-200"
-                  : "bg-white text-blue-700 border-blue-200"
-              )}
-            >
-              {idx}
-            </div>
-            <div
-              className={cx(
-                "hidden md:block text-sm",
-                active ? "text-blue-800 font-semibold" : "text-blue-500"
-              )}
-            >
-              {s}
-            </div>
-            {idx < steps.length && (
-              <ChevronRight className="w-4 h-4 text-blue-300 hidden sm:block" />
-            )}
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-const Campain = () => {
-  /* --- state --- */
-  const [campaigns, setCampaigns] = useState(() => readLocalCampaigns());
-  const [loadingCampaigns] = useState(false);
-
-  const [assistants, setAssistants] = useState([]);
-  const [loadingAssistants, setLoadingAssistants] = useState(false);
-
-  const [lists, setLists] = useState([]);
-  const [loadingLists, setLoadingLists] = useState(false);
-
-  const [displayLeads, setDisplayLeads] = useState([]);
-  const [loadingLeads, setLoadingLeads] = useState(false);
-
-  // wizard
-  const [step, setStep] = useState(0);
-  const [campaignName, setCampaignName] = useState("");
-  const [selectedAssistant, setSelectedAssistant] = useState(null);
-  const [selectedList, setSelectedList] = useState(null);
-  const [selectedLeads, setSelectedLeads] = useState([]);
-
-  // follow-up & schedule
-  const [retryNonPicking, setRetryNonPicking] = useState(false);
-  const [maxRetries, setMaxRetries] = useState(3);
-  const [campaignStartDate, setCampaignStartDate] = useState("");
-  const [campaignEndDate, setCampaignEndDate] = useState("");
-  const [selectedDays, setSelectedDays] = useState(["Mon", "Tue", "Wed", "Thu", "Fri"]);
-  const [callingHours, setCallingHours] = useState({ start: "09:00", end: "18:00" });
-  const [timezone, setTimezone] = useState("UTC");
-
-  // dialogs
-  const [showAddLead, setShowAddLead] = useState(false);
-  const [confirmOpen, setConfirmOpen] = useState(false);
-  const [toDelete, setToDelete] = useState(null);
-
-  // edit mode
-  const [isEditMode, setIsEditMode] = useState(false);
-  const [editingId, setEditingId] = useState(null);
-  const [creating, setCreating] = useState(false);
-
-  /* --- effects --- */
+  /* Fetch list + resources on mount */
   useEffect(() => {
-    loadAssistants();
-    loadLists();
-  }, []);
-
-  useEffect(() => {
-    if (step === 3 && selectedList) {
-      loadLeads(selectedList);
+    if (!token.current) {
+      setLoading(false)
+      toast.error("No auth token found. Please log in.")
+      return
     }
-  }, [step, selectedList]);
+    fetchAll()
+    // eslint-disable-next-line
+  }, [])
 
-  // when editing and leads load, pre-select not-skipped
-  useEffect(() => {
-    if (step === 3 && isEditMode && editingId && displayLeads.length) {
-      const campaign = getLocalCampaignById(editingId);
-      const skipped = new Set(campaign?.skipped_leads || []);
-      setSelectedLeads(displayLeads.map((l) => l.id).filter((id) => !skipped.has(id)));
-    }
-  }, [step, isEditMode, editingId, displayLeads]);
-
-  // when creating new (not edit), select all
-  useEffect(() => {
-    if (step === 3 && !isEditMode && displayLeads.length) {
-      setSelectedLeads(displayLeads.map((l) => l.id));
-    }
-  }, [step, isEditMode, displayLeads]);
-
-  /* --- loaders --- */
-  async function loadAssistants() {
+  async function fetchAll() {
+    setLoading(true)
     try {
-      setLoadingAssistants(true);
-      const data = await getJSON(ENDPOINTS.assistants);
-      // show only assistants with an attached phone number (backend key: attached_Number)
-      const filtered = (Array.isArray(data) ? data : []).filter((a) => !!a.attached_Number);
-      setAssistants(filtered);
-    } catch (e) {
-      console.error("Assistants fetch error:", e);
-      setAssistants([]);
+      await Promise.all([fetchCampaigns(), fetchFiles(), fetchAssistants()])
     } finally {
-      setLoadingAssistants(false);
+      setLoading(false)
     }
   }
 
-  async function loadLists() {
+  async function authedFetch(url, options = {}) {
+    if (!token.current) {
+      toast.error("No auth token found. Please log in.")
+      throw new Error("No token")
+    }
+    const res = await fetch(url, {
+      ...options,
+      headers: {
+        ...(options.headers || {}),
+        Authorization: `Bearer ${token.current}`,
+      },
+    })
+    return res
+  }
+
+  async function fetchCampaigns() {
     try {
-      setLoadingLists(true);
-      const data = await getJSON(ENDPOINTS.lists);
-      setLists(Array.isArray(data) ? data : []);
+      const res = await authedFetch(EP.LIST)
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const data = await res.json()
+      setCampaigns(Array.isArray(data) ? data : [])
     } catch (e) {
-      console.error("Lists fetch error:", e);
-      setLists([]);
+      console.error(e)
+      toast.error("Failed to fetch campaigns")
+      setCampaigns([])
+    }
+  }
+
+  async function fetchFiles() {
+    try {
+      const res = await authedFetch(RESOURCES.FILES)
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const data = await res.json()
+      setFiles(Array.isArray(data) ? data : data?.items || [])
+    } catch (e) {
+      console.warn("Files fetch failed:", e.message)
+      setFiles([])
+    }
+  }
+
+  async function fetchAssistants() {
+    try {
+      const res = await authedFetch(RESOURCES.ASSISTANTS)
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const data = await res.json()
+      const arr = (Array.isArray(data) && data) || data?.items || data?.assistants || data?.data || []
+      const normalized = arr.filter((a) => a && a.id !== undefined && a.id !== null)
+      setAssistants(normalized)
+    } catch (e) {
+      console.warn("Assistants fetch failed:", e.message)
+      setAssistants([])
+    }
+  }
+
+  async function loadLeadsForFile(fileId) {
+    if (!fileId) {
+      setLeadsForFile([])
+      return
+    }
+    try {
+      setLeadsLoading(true)
+      const res = await authedFetch(RESOURCES.LEADS(fileId))
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const json = await res.json()
+      const list = Array.isArray(json) ? json : json?.leads || json?.items || []
+      setLeadsForFile(list)
+    } catch (e) {
+      console.warn("Leads fetch failed:", e.message)
+      setLeadsForFile([])
     } finally {
-      setLoadingLists(false);
+      setLeadsLoading(false)
     }
   }
 
-  async function loadLeads(listId) {
+  async function refreshAll() {
+    setRefreshing(true)
     try {
-      setLoadingLeads(true);
-      const data = await getJSON(ENDPOINTS.leadsByList(listId));
-      const rows = (Array.isArray(data) ? data : []).map((l) => ({
-        id: l.id,
-        name: [l.first_name, l.last_name].filter(Boolean).join(" ").trim() || "-",
-        phone: l.mobile || "-",
-        email: l.email || "-",
-      }));
-      setDisplayLeads(rows);
-    } catch (e) {
-      console.error("Leads fetch error:", e);
-      setDisplayLeads([]);
+      await fetchCampaigns()
     } finally {
-      setLoadingLeads(false);
+      setRefreshing(false)
     }
   }
 
-  /* --- helpers --- */
-  const toggleDay = (d) =>
-    setSelectedDays((prev) => (prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d]));
-
-  const validateCallingHours = (start, end) => {
-    if (!start || !end) return false;
-    const [sh, sm] = start.split(":").map(Number);
-    const [eh, em] = end.split(":").map(Number);
-    const s = sh * 60 + sm, e = eh * 60 + em;
-    return e > s;
-  };
-
-  const resetWizard = () => {
-    setStep(0);
-    setCampaignName("");
-    setSelectedAssistant(null);
-    setSelectedList(null);
-    setDisplayLeads([]);
-    setSelectedLeads([]);
-    setRetryNonPicking(false);
-    setMaxRetries(3);
-    setCampaignStartDate("");
-    setCampaignEndDate("");
-    setSelectedDays(["Mon", "Tue", "Wed", "Thu", "Fri"]);
-    setCallingHours({ start: "09:00", end: "18:00" });
-    setTimezone("UTC");
-    setIsEditMode(false);
-    setEditingId(null);
-  };
-
-  /* --- lead/list actions --- */
-  const handleAddLead = async (payload) => {
-    try {
-      await postJSON(ENDPOINTS.addLead, payload);
-      await loadLeads(selectedList);
-      // Keep existing selections; make sure the newly added will be selectable on next load
-      setSelectedLeads((prev) => Array.from(new Set(prev)));
-      setShowAddLead(false);
-    } catch (e) {
-      console.error("add lead failed:", e);
-      alert("Failed to add lead.");
-    }
-  };
-
-  const handleCreateList = async () => {
-    const name = prompt("List name?");
-    if (!name) return;
-    try {
-      await postJSON(ENDPOINTS.createList, { name });
-      await loadLists();
-    } catch (e) {
-      console.error("create list failed:", e);
-      alert("Failed to create list.");
-    }
-  };
-
-  /* --- campaign actions --- */
-  const handleCreateOrUpdateCampaign = async () => {
-    if (!validateCallingHours(callingHours.start, callingHours.end)) {
-      alert("End time must be after start time");
-      return;
-    }
-    if (!campaignStartDate || !campaignEndDate) {
-      alert("Please set start and end date");
-      return;
-    }
-    if (campaignEndDate <= campaignStartDate) {
-      alert("End date must be after start date");
-      return;
-    }
-    if (!selectedLeads.length) {
-      alert("Please select at least one lead.");
-      return;
-    }
-
-    setCreating(true);
-    try {
-      const startDateUTC = new Date(campaignStartDate).toISOString();
-      const endDateUTC = new Date(campaignEndDate).toISOString();
-
-      const allLeadIds = displayLeads.map((l) => l.id);
-      const skipped = allLeadIds.filter((id) => !selectedLeads.includes(id));
-
-      const payload = {
-        name: campaignName.trim(),
-        start_date: startDateUTC,
-        end_date: endDateUTC,
-        assistant_id: selectedAssistant,
-        list_id: selectedList,
-        calling_day: selectedDays.join(","),
-        calling_hour_start: callingHours.start,
-        calling_hour_end: callingHours.end,
-        timezone,
-        skipped_leads: skipped,
-        selected_lead_ids: selectedLeads,
-        call_again: retryNonPicking,
-        tries: retryNonPicking ? maxRetries : 0,
-      };
-
-      if (isEditMode && editingId) {
-        updateLocalCampaign(editingId, payload);
-      } else {
-        createLocalCampaign(payload);
+  /* Derived list */
+  const filtered = useMemo(() => {
+    const q = debouncedQuery.trim().toLowerCase()
+    const list = campaigns.filter((c) => {
+      if (!q) return true
+      const fields = [
+        (c.name || "").toLowerCase(),
+        (c.status || "").toLowerCase(),
+        String(c.id || ""),
+        String(c.file_id || ""),
+        String(c.assistant_id || ""),
+      ]
+      return fields.some((f) => f.includes(q))
+    })
+    const dir = sortDir === "asc" ? 1 : -1
+    list.sort((a, b) => {
+      let va, vb
+      switch (sortBy) {
+        case "name":
+          va = (a.name || "").toLowerCase()
+          vb = (b.name || "").toLowerCase()
+          break
+        case "status":
+          va = (a.status || "").toLowerCase()
+          vb = (b.status || "").toLowerCase()
+          break
+        case "calls_per_minute":
+          va = a.calls_per_minute || 0
+          vb = b.calls_per_minute || 0
+          break
+        case "created_at":
+        default:
+          va = new Date(a.created_at || 0).getTime()
+          vb = new Date(b.created_at || 0).getTime()
       }
-      setCampaigns(readLocalCampaigns());
-      resetWizard();
+      if (va < vb) return -1 * dir
+      if (va > vb) return 1 * dir
+      return 0
+    })
+    return list
+  }, [campaigns, debouncedQuery, sortBy, sortDir])
+
+  const totalItems = filtered.length
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize))
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages)
+  }, [page, totalPages])
+  const start = (page - 1) * pageSize
+  const end = start + pageSize
+  const pageItems = filtered.slice(start, end)
+
+  // Stats
+  const stats = useMemo(() => {
+    const total = filtered.length
+    const running = filtered.filter((c) => (c.status || "").toLowerCase() === "running").length
+    const paused = filtered.filter((c) => (c.status || "").toLowerCase() === "paused").length
+    return { total, running, paused }
+  }, [filtered])
+
+  /* Create: behavior */
+  function onCreateChange(e) {
+    const { name, value, type, checked } = e.target
+    setCreateForm((f) => {
+      const next = { ...f, [name]: type === "checkbox" ? checked : value }
+      if (name === "file_id") {
+        const fileIdNum = Number(value) || ""
+        if (fileIdNum) loadLeadsForFile(fileIdNum)
+        else setLeadsForFile([])
+        next.include_lead_ids = []
+        next.exclude_lead_ids = []
+      }
+      if (name === "selection_mode") {
+        next.include_lead_ids = []
+        next.exclude_lead_ids = []
+      }
+      return next
+    })
+  }
+  function toggleDOW(d) {
+    setCreateForm((f) => {
+      const has = f.days_of_week.includes(d)
+      const days = has ? f.days_of_week.filter((x) => x !== d) : [...f.days_of_week, d]
+      days.sort((a, b) => a - b)
+      return { ...f, days_of_week: days }
+    })
+  }
+
+  async function createCampaign() {
+    if (!createForm.name || !createForm.file_id || !createForm.assistant_id) {
+      toast.error("Name, File and Assistant are required.")
+      return
+    }
+    if (createForm.selection_mode !== "ALL" && createForm.file_id && leadsForFile.length === 0) {
+      toast.error("No leads available for the selected file.")
+      return
+    }
+
+    const payload = {
+      name: String(createForm.name).trim(),
+      file_id: Number(createForm.file_id),
+      assistant_id: Number(createForm.assistant_id),
+      selection_mode: createForm.selection_mode,
+      include_lead_ids:
+        createForm.selection_mode === "ONLY" && createForm.include_lead_ids?.length ? createForm.include_lead_ids : null,
+      exclude_lead_ids:
+        createForm.selection_mode === "SKIP" && createForm.exclude_lead_ids?.length ? createForm.exclude_lead_ids : null,
+      timezone: createForm.timezone || "America/Los_Angeles",
+      days_of_week: createForm.days_of_week,
+      daily_start: createForm.daily_start || "09:00",
+      daily_end: createForm.daily_end || "18:00",
+      start_at: fromInputDateTimeLocal(createForm.start_at),
+      end_at: fromInputDateTimeLocal(createForm.end_at),
+      calls_per_minute: Number(createForm.calls_per_minute) || 10,
+      parallel_calls: Number(createForm.parallel_calls) || 2,
+      retry_on_busy: !!createForm.retry_on_busy,
+      busy_retry_delay_minutes: Number(createForm.busy_retry_delay_minutes) || 15,
+      max_attempts: Number(createForm.max_attempts) || 3,
+    }
+
+    try {
+      setCreating(true)
+      const res = await authedFetch(EP.CREATE, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok || json?.success === false) throw new Error(json?.detail || `HTTP ${res.status}`)
+      toast.success(json?.detail || "Campaign created.")
+      setShowCreate(false)
+      setStep(1)
+      setCreateForm((f) => ({
+        ...f,
+        name: "",
+        include_lead_ids: [],
+        exclude_lead_ids: [],
+      }))
+      await fetchCampaigns()
     } catch (e) {
-      console.error("create/update campaign error:", e);
-      alert("Failed to save campaign.");
+      console.error(e)
+      toast.error(e?.message || "Create failed")
     } finally {
-      setCreating(false);
+      setCreating(false)
     }
-  };
+  }
 
-  const startCreateFlow = () => {
-    setIsEditMode(false);
-    setEditingId(null);
-    setStep(1);
-  };
-
-  const startEditFlow = (campaignId) => {
-    const c = getLocalCampaignById(campaignId);
-    if (!c) return;
-    setIsEditMode(true);
-    setEditingId(campaignId);
-    setCampaignName(c.name || "");
-    setSelectedAssistant(c.assistant_id || null);
-    setSelectedList(c.list_id || null);
-    setRetryNonPicking(!!c.call_again);
-    setMaxRetries(c.tries ?? 1);
-    setCampaignStartDate(c.start_date?.slice(0, 10) || "");
-    setCampaignEndDate(c.end_date?.slice(0, 10) || "");
-    setSelectedDays(c.calling_day ? c.calling_day.split(",") : ["Mon", "Tue", "Wed", "Thu", "Fri"]);
-    setCallingHours({
-      start: c.calling_hour_start || "09:00",
-      end: c.calling_hour_end || "18:00",
-    });
-    setTimezone(c.timezone || "UTC");
-    setStep(1);
-  };
-
-  const toggleActive = (id) => {
-    const c = getLocalCampaignById(id);
-    if (!c) return;
-    updateLocalCampaign(id, { is_active: !c.is_active });
-    setCampaigns(readLocalCampaigns());
-  };
-
-  const askDelete = (id) => {
-    setToDelete(id);
-    setConfirmOpen(true);
-  };
-  const doDelete = () => {
-    if (toDelete != null) {
-      deleteLocalCampaign(toDelete);
-      setCampaigns(readLocalCampaigns());
-      setToDelete(null);
+  /* Details */
+  async function openDetails(c) {
+    setActiveCampaign(c)
+    setShowDetails(true)
+    await loadDetails(c.id)
+  }
+  async function loadDetails(id) {
+    if (!id) return
+    try {
+      setDetailsLoading(true)
+      const res = await authedFetch(EP.DETAIL(id))
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const json = await res.json()
+      setDetails(json)
+    } catch (e) {
+      console.error(e)
+      toast.error("Failed to load campaign details")
+      setDetails(null)
+    } finally {
+      setDetailsLoading(false)
     }
-  };
+  }
 
-  /* --- UI --- */
+  /* Controls */
+  async function postAction(urlBuilder, id, okMsg) {
+    try {
+      const res = await authedFetch(urlBuilder(id), { method: "POST" })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok || json?.success === false) throw new Error(json?.detail || `HTTP ${res.status}`)
+      toast.success(json?.detail || okMsg)
+      await fetchCampaigns()
+      if (activeCampaign && activeCampaign.id === id) {
+        await loadDetails(id)
+      }
+    } catch (e) {
+      console.error(e)
+      toast.error(e?.message || "Action failed")
+    }
+  }
+  const doPause = (id) => postAction(EP.PAUSE, id, "Paused")
+  const doResume = (id) => postAction(EP.RESUME, id, "Resumed")
+  const doStop = (id) => postAction(EP.STOP, id, "Stopped")
+
+  async function doDelete(id) {
+    if (!confirm("Delete this campaign and its progress rows?")) return
+    try {
+      const res = await authedFetch(EP.DELETE(id), { method: "DELETE" })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok || json?.success === false) throw new Error(json?.detail || `HTTP ${res.status}`)
+      toast.success(json?.detail || "Deleted")
+      setShowDetails(false)
+      setActiveCampaign(null)
+      await fetchCampaigns()
+    } catch (e) {
+      console.error(e)
+      toast.error(e?.message || "Delete failed")
+    }
+  }
+
+  async function doRunNow(id, batchSize) {
+    try {
+      const res = await authedFetch(EP.RUN_NOW(id), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ batch_size: Number(batchSize) || 5 }),
+      })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok || json?.success === false) throw new Error(json?.detail || `HTTP ${res.status}`)
+      toast.success(json?.detail || "Triggered.")
+    } catch (e) {
+      console.error(e)
+      toast.error(e?.message || "Run-now failed")
+    }
+  }
+
+  async function updateSchedule(id, form) {
+    const payload = {
+      timezone: form.timezone || undefined,
+      days_of_week: form.days_of_week?.length ? form.days_of_week : undefined,
+      daily_start: form.daily_start || undefined,
+      daily_end: form.daily_end || undefined,
+      start_at: fromInputDateTimeLocal(form.start_at),
+      end_at: fromInputDateTimeLocal(form.end_at),
+    }
+    try {
+      const res = await authedFetch(EP.SCHEDULE(id), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok || json?.success === false) throw new Error(json?.detail || `HTTP ${res.status}`)
+      toast.success(json?.detail || "Schedule updated")
+      await fetchCampaigns()
+      await loadDetails(id)
+    } catch (e) {
+      console.error(e)
+      toast.error(e?.message || "Update failed")
+    }
+  }
+
+  async function updateRetryPolicy(id, form) {
+    const payload = {
+      retry_on_busy: !!form.retry_on_busy,
+      busy_retry_delay_minutes: Number(form.busy_retry_delay_minutes) || 15,
+      max_attempts: Number(form.max_attempts) || 3,
+    }
+    try {
+      const res = await authedFetch(EP.RETRY(id), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      })
+      const json = await res.json().catch(() => ({}))
+      if (!res.ok || json?.success === false) throw new Error(json?.detail || `HTTP ${res.status}`)
+      toast.success(json?.detail || "Retry policy updated")
+      await loadDetails(id)
+    } catch (e) {
+      console.error(e)
+      toast.error(e?.message || "Update failed")
+    }
+  }
+
+  async function downloadICS(id, name = "campaign") {
+    try {
+      const res = await authedFetch(EP.ICS(id))
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement("a")
+      a.href = url
+      a.download = `${name || "campaign"}.ics`
+      document.body.appendChild(a)
+      a.click()
+      a.remove()
+      URL.revokeObjectURL(url)
+    } catch (e) {
+      console.error(e)
+      toast.error("ICS download failed")
+    }
+  }
+
+  const handleOpenCreate = () => {
+    setShowCreate(true)
+    setStep(1)
+  }
+
+  const handleCloseCreate = () => {
+    setShowCreate(false)
+    setStep(1)
+    setCreateForm((f) => ({
+      ...f,
+      name: "",
+      include_lead_ids: [],
+      exclude_lead_ids: [],
+    }))
+  }
+
+  const handleNext = () => {
+    setStep((s) => Math.min(6, s + 1))
+  }
+
+  const handleBack = () => {
+    setStep((s) => Math.max(1, s - 1))
+  }
+
+  /* Render */
   return (
-    <div className="min-h-screen w-full bg-gradient-to-br from-white via-blue-50 to-blue-100">
-      <div className="mx-auto max-w-7xl px-4 py-8">
+    <div className="min-h-screen bg-slate-50">
+      <main className="mx-auto max-w-7xl px-3 sm:px-4 lg:px-6 py-4 sm:py-6 lg:py-8">
         {/* Header */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
-          <h1 className={cx("text-3xl font-extrabold", neon.glowText)}>Campaigns</h1>
-          <div className="flex gap-2">
-            <button onClick={handleCreateList} className={cx(neon.btnGhost, "px-4 py-2 rounded-lg")}>
-              + New List
-            </button>
-            <button
-              onClick={startCreateFlow}
-              className={cx(neon.btnPrimary, "px-4 py-2 rounded-lg flex items-center gap-2")}
-            >
-              <Plus className="w-4 h-4" />
-              Create Campaign
-            </button>
+        <motion.div initial="hidden" animate="show" variants={fadeUp} className="mb-6 sm:mb-8 flex flex-col gap-3 sm:gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h1 className="text-2xl sm:text-3xl lg:text-4xl font-bold text-slate-900">Campaigns</h1>
+            <p className="mt-1 text-sm sm:text-base text-slate-600">Manage your calling campaigns and schedules.</p>
           </div>
-        </div>
+          <div className="flex items-center gap-2 sm:gap-3">
+            <ButtonGhost onClick={refreshAll} disabled={refreshing} icon={refreshing ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}>
+              <span className="hidden sm:inline">Refresh</span>
+            </ButtonGhost>
+            <ButtonPrimary onClick={handleOpenCreate} icon={<Plus className="h-4 w-4" />}>
+              <span className="hidden sm:inline">Create Campaign</span>
+              <span className="sm:hidden">Create</span>
+            </ButtonPrimary>
+          </div>
+        </motion.div>
 
-        {/* Campaigns Table */}
-        <div className={cx(neon.card, "overflow-hidden")}>
-          <div className="overflow-x-auto">
-            <table className="min-w-full table-auto">
-              <thead className="bg-blue-50">
-                <tr className="text-blue-900">
-                  <Th>Name</Th>
-                  <Th>Status</Th>
-                  <Th>Statistics</Th>
-                  <Th>Created</Th>
-                  <Th>Actions</Th>
+        {/* Filters */}
+        <motion.div initial="hidden" animate="show" variants={slideInFromBottom} className="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="relative sm:col-span-1 lg:col-span-2">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 sm:h-5 sm:w-5 text-slate-400" />
+            <input
+              value={query}
+              onChange={(e) => {
+                setQuery(e.target.value)
+                setPage(1)
+              }}
+              placeholder="Search name, status, IDs…"
+              className="w-full rounded-xl sm:rounded-2xl border border-slate-200/70 bg-white/80 pl-9 sm:pl-10 pr-3 py-2 sm:py-2.5 text-sm sm:text-base text-slate-900 placeholder-slate-400 outline-none ring-1 ring-white/60 transition focus:ring-2 focus:ring-cyan-400/40 focus:border-cyan-300"
+              aria-label="Search campaigns"
+            />
+          </div>
+
+          <div className="flex items-center justify-between sm:justify-end gap-3">
+            <div className="text-xs sm:text-sm text-slate-600 hidden sm:block">
+              Total: <span className="font-semibold text-slate-900">{totalItems}</span>
+            </div>
+            <select
+              value={pageSize}
+              onChange={(e) => {
+                setPageSize(Number(e.target.value))
+                setPage(1)
+              }}
+              className="rounded-xl sm:rounded-2xl border border-slate-200/70 bg-white/80 px-2 sm:px-3 py-1.5 sm:py-2 text-xs sm:text-sm outline-none ring-1 ring-white/60 focus:ring-2 focus:ring-cyan-400/40"
+              aria-label="Rows per page"
+            >
+              {[10, 20, 40, 80].map((n) => (
+                <option key={n} value={n}>
+                  {n} / page
+                </option>
+              ))}
+            </select>
+          </div>
+        </motion.div>
+
+        {/* Stats */}
+        <motion.div initial="hidden" animate="show" variants={stagger} className="mt-4 sm:mt-6 grid grid-cols-1 gap-3 sm:gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <motion.div variants={fadeUp}>
+            <StatCard label="Total Campaigns" value={stats.total} Icon={Users} tone="blue" />
+          </motion.div>
+          <motion.div variants={fadeUp}>
+            <StatCard label="Running" value={stats.running} Icon={CheckCircle2} tone="cyan" />
+          </motion.div>
+          <motion.div variants={fadeUp} className="sm:col-span-2 lg:col-span-1">
+            <StatCard label="Paused" value={stats.paused} Icon={XCircle} tone="blue" />
+          </motion.div>
+        </motion.div>
+
+        {/* Table */}
+        <motion.div initial="hidden" animate="show" variants={slideInFromBottom} className="mt-4 sm:mt-6 overflow-x-auto rounded-2xl sm:rounded-3xl border border-slate-200/70 bg-white/70 backdrop-blur ring-1 ring-white/50">
+          <div className="min-w-full">
+            {/* Mobile Card View */}
+            <div className="block sm:hidden">
+              {loading ? (
+                <div className="p-4 space-y-3">
+                  {Array.from({ length: 3 }).map((_, i) => (
+                    <div key={i} className="animate-pulse bg-slate-100 rounded-xl p-4 h-24" />
+                  ))}
+                </div>
+              ) : (
+                <div className="divide-y divide-slate-200">
+                  {pageItems.map((camp, idx) => (
+                    <motion.div
+                      key={camp.id}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: idx * 0.05 }}
+                      className="p-4 hover:bg-slate-50/50 transition-colors cursor-pointer"
+                      onClick={() => openDetails(camp)}
+                    >
+                      <div className="flex items-start justify-between mb-2">
+                        <div className="flex-1 min-w-0">
+                          <h3 className="font-semibold text-slate-900 truncate">{unknown(camp.name)}</h3>
+                          <p className="text-xs text-slate-500">ID: {camp.id}</p>
+                        </div>
+                        <StatusChip status={camp.status} />
+                      </div>
+                      <div className="flex items-center justify-between text-xs text-slate-600">
+                        <span>{fmtDT(camp.created_at)}</span>
+                        <span>{camp.counts?.total || 0} leads</span>
+                      </div>
+                    </motion.div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Desktop Table View */}
+            <table className="hidden sm:table min-w-full text-left">
+              <thead className="bg-slate-50/50 backdrop-blur">
+                <tr>
+                  <Th sortKey="name" sortBy={sortBy} sortDir={sortDir} onSort={(k) => setSort(k, setSortBy, setSortDir)}>
+                    Name
+                  </Th>
+                  <Th sortKey="status" sortBy={sortBy} sortDir={sortDir} onSort={(k) => setSort(k, setSortBy, setSortDir)}>
+                    Status
+                  </Th>
+                  <th className="px-5 py-3 font-semibold">File</th>
+                  <th className="px-5 py-3 font-semibold">Assistant</th>
+                  <Th sortKey="calls_per_minute" sortBy={sortBy} sortDir={sortDir} onSort={(k) => setSort(k, setSortBy, setSortDir)}>
+                    Pacing
+                  </Th>
+                  <th className="px-5 py-3 font-semibold">Created</th>
+                  <th className="px-5 py-3 font-semibold">Leads</th>
+                  <th></th>
                 </tr>
               </thead>
               <tbody>
-                {loadingCampaigns ? (
+                {loading ? (
+                  <RowSkeleton rows={pageSize} cols={8} />
+                ) : pageItems.length === 0 ? (
                   <tr>
-                    <td colSpan={5} className="text-center py-8 text-blue-600">
-                      <Loader2 className="w-5 h-5 animate-spin inline mr-2" />
-                      Loading campaigns…
-                    </td>
-                  </tr>
-                ) : campaigns.length === 0 ? (
-                  <tr>
-                    <td colSpan={5} className="p-6">
-                      <EmptyState
-                        title="No campaigns yet."
-                        subtitle="Click 'Create Campaign' to start a new dialing plan."
-                      />
+                    <td colSpan={8} className="px-5 py-4 text-center text-sm text-slate-500">
+                      No campaigns found.
                     </td>
                   </tr>
                 ) : (
-                  campaigns.map((c) => (
-                    <tr key={c.id} className="border-t border-blue-100 hover:bg-blue-50/50">
-                      <Td>{c.name}</Td>
-                      <Td>
-                        <div className="flex justify-center">
-                          <Toggle checked={!!c.is_active} onChange={() => toggleActive(c.id)} />
+                  pageItems.map((camp) => (
+                    <tr key={camp.id} className="group/row hover:bg-slate-50/50 transition-colors">
+                      <td className="px-5 py-3 font-medium text-slate-900">
+                        <button onClick={() => openDetails(camp)} className="group/cell flex items-center gap-2 text-left">
+                          {unknown(camp.name)}
+                        </button>
+                      </td>
+                      <td className="px-5 py-3">
+                        <StatusChip status={camp.status} />
+                      </td>
+                      <td className="px-5 py-3 text-slate-700">{camp.file_id}</td>
+                      <td className="px-5 py-3 text-slate-700">{camp.assistant_id}</td>
+                      <td className="px-5 py-3 text-slate-700">{camp.calls_per_minute}</td>
+                      <td className="px-5 py-3 text-slate-600">{fmtDT(camp.created_at)}</td>
+                      <td className="px-5 py-3 text-slate-700">{camp.counts?.total || 0}</td>
+                      <td className="px-5 py-3 text-right">
+                        <div className="invisible group-hover/row:visible flex items-center justify-end gap-2">
+                          <ButtonGhost onClick={() => downloadICS(camp.id, camp?.name)} icon={<Download className="h-4 w-4" />}>
+                            ICS
+                          </ButtonGhost>
+                          <ButtonGhost onClick={() => openDetails(camp)} icon={<Eye className="h-4 w-4" />}>
+                            Details
+                          </ButtonGhost>
                         </div>
-                      </Td>
-                      <Td>
-                        <CampaignRowStats campaign={c} />
-                      </Td>
-                      <Td>{fmtDate(c.created_at || c.start_date)}</Td>
-                      <Td>
-                        <div className="flex justify-center gap-2">
-                          <IconBtn title="Edit" onClick={() => startEditFlow(c.id)}>
-                            <Edit3 className="w-4 h-4" />
-                          </IconBtn>
-                          <IconBtn title="Delete" onClick={() => askDelete(c.id)}>
-                            <Trash2 className="w-4 h-4" />
-                          </IconBtn>
-                        </div>
-                      </Td>
+                      </td>
                     </tr>
                   ))
                 )}
               </tbody>
             </table>
           </div>
-        </div>
+        </motion.div>
 
-        {/* Wizard Modal */}
-        {step >= 1 && step <= 6 && (
-          <Modal open={true} onClose={resetWizard} maxWidth="max-w-4xl">
-            <Stepper step={step} />
-            {step === 1 && (
-              <div>
-                <h2 className="text-2xl font-bold mb-4 text-blue-700">
-                  {isEditMode ? "Edit Campaign" : "Campaign Details"}
-                </h2>
-                <div className="grid grid-cols-1 gap-4">
-                  <Field label="Campaign Name">
-                    <input
-                      value={campaignName}
-                      onChange={(e) => setCampaignName(e.target.value)}
-                      placeholder="Summer Outreach"
-                    />
-                  </Field>
-                  <div>
-                    <div className="text-sm text-blue-800 mb-2">Select Assistant</div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                      {loadingAssistants ? (
-                        <div className="col-span-2 text-blue-600 py-8 text-center">
-                          <Loader2 className="w-5 h-5 animate-spin inline mr-2" />
-                          Loading assistants…
-                        </div>
-                      ) : assistants.length === 0 ? (
-                        <div className="col-span-2">
-                          <EmptyState
-                            title="No assistants found."
-                            subtitle="Create an assistant with an attached phone number first."
-                          />
-                        </div>
-                      ) : (
-                        assistants.map((a) => {
-                          const active = selectedAssistant === a.id;
-                          return (
-                            <button
-                              key={a.id}
-                              onClick={() => setSelectedAssistant(a.id)}
-                              className={cx(
-                                "text-left p-4 rounded-xl border transition-all",
-                                active
-                                  ? "border-blue-500 bg-blue-50 shadow-[0_0_20px_rgba(59,130,246,0.35)]"
-                                  : "border-blue-100 hover:border-blue-300"
-                              )}
-                            >
-                              <div className="text-blue-800 font-semibold">{a.name || "Untitled"}</div>
-                              <div className="text-blue-500 text-xs mt-1">
-                                Number: {a.attached_Number || "-"}
-                              </div>
-                              <div className="text-blue-400 text-xs mt-1">Model: {a.model}</div>
-                            </button>
-                          );
-                        })
-                      )}
+        {/* Pagination */}
+        <motion.div initial="hidden" animate="show" variants={fadeUp} className="mt-4 sm:mt-6 flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-4">
+          <div className="text-xs sm:text-sm text-slate-600 order-2 sm:order-1">
+            Showing {totalItems === 0 ? 0 : (page - 1) * pageSize + 1}–{Math.min(page * pageSize, totalItems)} of {totalItems}
+          </div>
+          <div className="flex items-center gap-2 order-1 sm:order-2">
+            <PagerButton disabled={page <= 1} onClick={() => setPage(page - 1)}>
+              <ChevronLeft className="h-3 w-3 sm:h-4 sm:w-4" />
+              <span className="hidden sm:inline">Previous</span>
+            </PagerButton>
+            <span className="px-2 sm:px-3 py-1 text-xs sm:text-sm font-medium text-slate-700">
+              {page} of {totalPages}
+            </span>
+            <PagerButton disabled={page >= totalPages} onClick={() => setPage(page + 1)}>
+              <span className="hidden sm:inline">Next</span>
+              <ChevronRight className="h-3 w-3 sm:h-4 sm:w-4" />
+            </PagerButton>
+          </div>
+        </motion.div>
+      </main>
+
+      {/* Create Campaign Modal */}
+      <AnimatePresence>
+        {showCreate && (
+          <>
+            <motion.div className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm" variants={overlay} initial="hidden" animate="show" exit="exit" onClick={handleCloseCreate} />
+            <motion.div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 lg:p-6" variants={modalVariants} initial="hidden" animate="show" exit="exit">
+              <div className="w-full max-w-xs sm:max-w-md lg:max-w-2xl xl:max-w-4xl max-h-[90vh] bg-white rounded-2xl sm:rounded-3xl shadow-2xl border border-slate-200 flex flex-col overflow-hidden">
+                {/* Modal Header */}
+                <div className="sticky top-0 bg-white/95 backdrop-blur border-b border-slate-200 p-4 sm:p-6 flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="h-8 w-8 sm:h-10 sm:w-10 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-500 flex items-center justify-center">
+                      <Plus className="h-4 w-4 sm:h-5 sm:w-5 text-white" />
+                    </div>
+                    <div>
+                      <h2 className="text-lg sm:text-xl font-bold text-slate-900">Create Campaign</h2>
+                      <p className="text-xs sm:text-sm text-slate-600">Step {step} of 6</p>
                     </div>
                   </div>
-                </div>
-                <div className="flex justify-end mt-6 gap-2">
-                  <button onClick={resetWizard} className={cx(neon.btnGhost, "px-4 py-2 rounded-lg")}>
-                    Close
+                  <button onClick={handleCloseCreate} className="h-8 w-8 sm:h-9 sm:w-9 rounded-xl border border-slate-200 hover:bg-slate-50 flex items-center justify-center transition-colors" aria-label="Close">
+                    <X className="h-4 w-4 sm:h-5 sm:w-5" />
                   </button>
-                  <button
-                    disabled={!campaignName.trim() || !selectedAssistant}
-                    onClick={() => setStep(2)}
-                    className={cx(neon.btnPrimary, "px-4 py-2 rounded-lg disabled:opacity-50")}
-                  >
-                    Next
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {step === 2 && (
-              <div>
-                <h2 className="text-2xl font-bold mb-4 text-blue-700">Select a List</h2>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  {loadingLists ? (
-                    <div className="col-span-2 text-center text-blue-600 py-8">
-                      <Loader2 className="w-5 h-5 animate-spin inline mr-2" />
-                      Loading lists…
-                    </div>
-                  ) : lists.length === 0 ? (
-                    <div className="col-span-2">
-                      <EmptyState
-                        title="No lists yet."
-                        subtitle="Create your first list from the dashboard."
-                      />
-                    </div>
-                  ) : (
-                    lists.map((list) => {
-                      const active = selectedList === list.id;
-                      return (
-                        <button
-                          key={list.id}
-                          onClick={() => setSelectedList(list.id)}
-                          className={cx(
-                            "text-left p-4 rounded-xl border transition-all",
-                            active
-                              ? "border-blue-500 bg-blue-50 shadow-[0_0_20px_rgba(59,130,246,0.35)]"
-                              : "border-blue-100 hover:border-blue-300"
-                          )}
-                        >
-                          <div className="text-blue-800 font-semibold text-lg">
-                            {list.name?.charAt(0).toUpperCase() + list.name?.slice(1)}
-                          </div>
-                          <div className="text-blue-600 text-sm mt-1">
-                            Leads: <span className="font-semibold">{list.leads_count ?? "-"}</span>
-                          </div>
-                          <div className="text-blue-400 text-xs mt-1">
-                            Created: {list.created_at ? fmtDate(list.created_at) : "-"}
-                          </div>
-                        </button>
-                      );
-                    })
-                  )}
-                </div>
-                <div className="flex justify-between mt-6">
-                  <button onClick={() => setStep(1)} className={cx(neon.btnGhost, "px-4 py-2 rounded-lg")}>
-                    Back
-                  </button>
-                  <button
-                    disabled={!selectedList}
-                    onClick={() => setStep(3)}
-                    className={cx(neon.btnPrimary, "px-4 py-2 rounded-lg disabled:opacity-50")}
-                  >
-                    Next
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {step === 3 && (
-              <div>
-                <div className="flex items-center justify-between mb-4">
-                  <h2 className="text-2xl font-bold text-blue-700">Select Leads</h2>
-                  <div className="text-sm text-blue-600">
-                    List:{" "}
-                    <span className="font-semibold">
-                      {lists.find((l) => l.id === selectedList)?.name || "-"}
-                    </span>
-                  </div>
                 </div>
 
-                <div className="flex justify-between mb-4">
-                  <button
-                    onClick={() => setShowAddLead(true)}
-                    className={cx(neon.btnPrimary, "px-4 py-2 rounded-lg")}
-                  >
-                    + Add Lead
-                  </button>
-                  <div className="text-blue-600 text-sm">
-                    Selected: <span className="font-semibold">{selectedLeads.length}</span> /{" "}
-                    {displayLeads.length}
-                  </div>
-                </div>
-
-                <div className={cx(neon.card, "p-0 overflow-hidden border-0")}>
-                  <div className="max-h-80 overflow-auto">
-                    <table className="min-w-full table-auto">
-                      <thead className="bg-blue-50 sticky top-0">
-                        <tr className="text-blue-900">
-                          <Th tight>
-                            <input
-                              type="checkbox"
-                              checked={
-                                displayLeads.length > 0 &&
-                                selectedLeads.length === displayLeads.length
-                              }
-                              onChange={(e) =>
-                                setSelectedLeads(
-                                  e.target.checked ? displayLeads.map((l) => l.id) : []
-                                )
-                              }
-                            />
-                          </Th>
-                          <Th>Name</Th>
-                          <Th>Phone</Th>
-                          <Th>Email</Th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {loadingLeads ? (
-                          <tr>
-                            <td colSpan={4} className="text-center py-8 text-blue-600">
-                              <Loader2 className="w-5 h-5 animate-spin inline mr-2" />
-                              Loading leads…
-                            </td>
-                          </tr>
-                        ) : displayLeads.length === 0 ? (
-                          <tr>
-                            <td colSpan={4} className="p-6">
-                              <EmptyState
-                                title="No leads in this list."
-                                subtitle="Add leads to continue."
-                              />
-                            </td>
-                          </tr>
-                        ) : (
-                          displayLeads.map((lead) => (
-                            <tr key={lead.id} className="border-t border-blue-100">
-                              <Td tight>
-                                <input
-                                  type="checkbox"
-                                  checked={selectedLeads.includes(lead.id)}
-                                  onChange={() =>
-                                    setSelectedLeads((prev) =>
-                                      prev.includes(lead.id)
-                                        ? prev.filter((x) => x !== lead.id)
-                                        : [...prev, lead.id]
-                                    )
-                                  }
-                                />
-                              </Td>
-                              <Td>{lead.name}</Td>
-                              <Td>{lead.phone}</Td>
-                              <Td>{lead.email}</Td>
-                            </tr>
-                          ))
+                {/* Progress Bar (✅ fix shadowing) */}
+                <div className="px-4 sm:px-6 py-2 sm:py-3 bg-slate-50/50">
+                  <div className="flex items-center gap-1 sm:gap-2">
+                    {[1, 2, 3, 4, 5, 6].map((i) => (
+                      <motion.div
+                        key={i}
+                        className={cx(
+                          "flex-1 h-1.5 sm:h-2 rounded-full transition-colors duration-300",
+                          i <= step ? "bg-gradient-to-r from-blue-500 to-cyan-500" : "bg-slate-200",
                         )}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-
-                <div className="flex justify-between mt-6">
-                  <button onClick={() => setStep(2)} className={cx(neon.btnGhost, "px-4 py-2 rounded-lg")}>
-                    Back
-                  </button>
-                  <button
-                    disabled={selectedLeads.length === 0}
-                    onClick={() => setStep(4)}
-                    className={cx(neon.btnPrimary, "px-4 py-2 rounded-lg disabled:opacity-50")}
-                  >
-                    Next
-                  </button>
-                </div>
-
-                <AddLeadModal
-                  open={showAddLead}
-                  onClose={() => setShowAddLead(false)}
-                  onSubmit={handleAddLead}
-                  fileId={selectedList}
-                />
-              </div>
-            )}
-
-            {step === 4 && (
-              <div>
-                <h2 className="text-2xl font-bold mb-6 text-blue-700">Follow-up Settings</h2>
-
-                <div
-                  className="flex items-center gap-3 cursor-pointer"
-                  onClick={() => setRetryNonPicking((p) => !p)}
-                >
-                  <Toggle checked={retryNonPicking} onChange={setRetryNonPicking} />
-                  <div className="text-blue-800 text-sm">Call again to non-picking leads</div>
-                </div>
-
-                {retryNonPicking && (
-                  <div className="mt-4">
-                    <Field label="How many tries (per lead)">
-                      <input
-                        type="number"
-                        min={1}
-                        value={maxRetries}
-                        onChange={(e) => setMaxRetries(Number(e.target.value))}
-                        placeholder="e.g. 3"
+                        initial={{ scaleX: 0 }}
+                        animate={{ scaleX: i <= step ? 1 : 0 }}
+                        transition={{ duration: 0.3, delay: i * 0.05 }}
                       />
-                    </Field>
+                    ))}
                   </div>
-                )}
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-6">
-                  <Field label="Start Date">
-                    <input
-                      type="date"
-                      value={campaignStartDate}
-                      min={new Date().toISOString().split("T")[0]}
-                      onChange={(e) => setCampaignStartDate(e.target.value)}
-                    />
-                  </Field>
-                  <Field label="End Date">
-                    <input
-                      type="date"
-                      value={campaignEndDate}
-                      min={campaignStartDate || new Date().toISOString().split("T")[0]}
-                      onChange={(e) => setCampaignEndDate(e.target.value)}
-                    />
-                  </Field>
-                </div>
-
-                <div className="flex justify-between mt-6">
-                  <button onClick={() => setStep(3)} className={cx(neon.btnGhost, "px-4 py-2 rounded-lg")}>
-                    Back
-                  </button>
-                  <button onClick={() => setStep(5)} className={cx(neon.btnPrimary, "px-4 py-2 rounded-lg")}>
-                    Next
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {step === 5 && (
-              <div>
-                <h2 className="text-2xl font-bold mb-6 text-blue-700">Schedule</h2>
-
-                <div className="mb-6">
-                  <div className="font-semibold mb-2 flex items-center gap-2 text-blue-700">
-                    <Calendar className="w-5 h-5" />
-                    Select Calling Days
-                  </div>
-                  <div className="grid grid-cols-5 gap-2">
-                    {dayLabels.map((d) => {
-                      const on = selectedDays.includes(d.key);
-                      return (
-                        <button
-                          key={d.key}
-                          onClick={() => toggleDay(d.key)}
-                          className={cx(
-                            "rounded-lg py-3 text-center border font-semibold",
-                            on ? neon.pillOn : neon.pillOff
-                          )}
-                        >
-                          {d.label}
-                        </button>
-                      );
-                    })}
+                  <div className="flex justify-between mt-2 text-xs text-slate-500">
+                    <span className="hidden sm:inline">Details</span>
+                    <span className="hidden sm:inline">Files</span>
+                    <span className="hidden sm:inline">Leads</span>
+                    <span className="hidden sm:inline">Schedule</span>
+                    <span className="hidden sm:inline">Pacing</span>
+                    <span className="hidden sm:inline">Review</span>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div>
-                    <div className="font-semibold mb-2 flex items-center gap-2 text-blue-700">
-                      <Clock className="w-5 h-5" />
-                      Calling Hours
-                    </div>
-                    <div className="flex items-center gap-3 bg-blue-50 p-4 rounded-xl border border-blue-100">
-                      <div>
-                        <div className="text-xs text-blue-500 mb-1">Start</div>
-                        <select
-                          value={callingHours.start}
-                          onChange={(e) =>
-                            setCallingHours((h) => ({ ...h, start: e.target.value }))
-                          }
-                          className="px-3 py-2 rounded-lg border border-blue-200 bg-white"
-                        >
-                          {Array.from({ length: 24 }).map((_, h) =>
-                            ["00", "30"].map((m) => {
-                              const val = `${String(h).padStart(2, "0")}:${m}`;
-                              return (
-                                <option key={`s-${val}`} value={val}>
-                                  {val}
+                {/* Modal Body */}
+                <div className="flex-1 overflow-y-auto">
+                  <AnimatePresence mode="wait">
+                    <motion.div key={step} variants={stepTransition} initial="hidden" animate="show" exit="exit" className="p-4 sm:p-6 lg:p-8">
+                      {step === 1 && (
+                        <div className="space-y-4 sm:space-y-6">
+                          <div>
+                            <h3 className="text-base sm:text-lg font-semibold text-slate-900 mb-2">Campaign Details</h3>
+                            <p className="text-sm text-slate-600">Set up the basic information for your campaign.</p>
+                          </div>
+
+                          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+                            <div>
+                              <label className="block text-sm font-medium text-slate-700 mb-2">Campaign Name</label>
+                              <input
+                                value={createForm.name}
+                                onChange={onCreateChange}
+                                name="name"
+                                placeholder="Enter campaign name"
+                                className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm focus:ring-2 focus:ring-cyan-400/40 focus:border-cyan-300 outline-none transition"
+                              />
+                            </div>
+
+                            <div>
+                              <label className="block text-sm font-medium text-slate-700 mb-2">Assistant</label>
+                              <select
+                                value={createForm.assistant_id}
+                                onChange={onCreateChange}
+                                name="assistant_id"
+                                className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm focus:ring-2 focus:ring-cyan-400/40 focus:border-cyan-300 outline-none transition"
+                              >
+                                <option value="">Select assistant</option>
+                                {assistants.map((a) => (
+                                  <option key={a.id} value={a.id}>
+                                    {a.name}
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          </div>
+
+                          <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-2">Description (optional)</label>
+                            <textarea
+                              value={createForm.description}
+                              onChange={onCreateChange}
+                              name="description"
+                              placeholder="Describe your campaign..."
+                              rows={3}
+                              className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm focus:ring-2 focus:ring-cyan-400/40 focus:border-cyan-300 outline-none transition resize-none"
+                            />
+                          </div>
+                        </div>
+                      )}
+                      {step === 2 && (
+                        <div className="space-y-4 sm:space-y-6">
+                          <div>
+                            <h3 className="text-base sm:text-lg font-semibold text-slate-900 mb-2">Select File</h3>
+                            <p className="text-sm text-slate-600">Choose the file containing the leads for your campaign.</p>
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-2">File</label>
+                            <select
+                              value={createForm.file_id}
+                              onChange={onCreateChange}
+                              name="file_id"
+                              className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm focus:ring-2 focus:ring-cyan-400/40 focus:border-cyan-300 outline-none transition"
+                            >
+                              <option value="">Select file</option>
+                              {files.map((f) => (
+                                <option key={f.id} value={f.id}>
+                                  {f.name}
                                 </option>
-                              );
-                            })
+                              ))}
+                            </select>
+                          </div>
+                        </div>
+                      )}
+                      {step === 3 && (
+                        <div className="space-y-4 sm:space-y-6">
+                          <div>
+                            <h3 className="text-base sm:text-lg font-semibold text-slate-900 mb-2">Select Leads</h3>
+                            <p className="text-sm text-slate-600">Choose which leads to include in your campaign.</p>
+                          </div>
+                          <div>
+                            <label className="block text-sm font-medium text-slate-700 mb-2">Selection Mode</label>
+                            <select
+                              value={createForm.selection_mode}
+                              onChange={onCreateChange}
+                              name="selection_mode"
+                              className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-sm focus:ring-2 focus:ring-cyan-400/40 focus:border-cyan-300 outline-none transition"
+                            >
+                              <option value="ALL">All Leads</option>
+                              <option value="ONLY">Only These Leads</option>
+                              <option value="SKIP">Skip These Leads</option>
+                            </select>
+                          </div>
+                          {createForm.selection_mode !== "ALL" && (
+                            <div className="space-y-3">
+                              <div className="relative">
+                                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 sm:h-5 sm:w-5 text-slate-400" />
+                                <input
+                                  value={leadSearch}
+                                  onChange={(e) => setLeadSearch(e.target.value)}
+                                  placeholder="Search leads…"
+                                  className="w-full rounded-xl border border-slate-200 px-9 py-2.5 text-sm focus:ring-2 focus:ring-cyan-400/40 focus:border-cyan-300 outline-none transition"
+                                />
+                              </div>
+                              {leadsLoading ? (
+                                <div className="rounded-xl border border-slate-200 bg-white p-6 text-center text-sm text-slate-600">
+                                  <Loader2 className="h-5 w-5 animate-spin mx-auto mb-3" />
+                                  Loading leads…
+                                </div>
+                              ) : (
+                                <LeadMultiSelect
+                                  leads={leadsForFile}
+                                  mode={createForm.selection_mode}
+                                  search={leadSearch}
+                                  selectedIds={
+                                    createForm.selection_mode === "ONLY"
+                                      ? createForm.include_lead_ids
+                                      : createForm.exclude_lead_ids
+                                  }
+                                  onChange={(ids) => {
+                                    if (createForm.selection_mode === "ONLY") {
+                                      setCreateForm((f) => ({ ...f, include_lead_ids: ids }))
+                                    } else {
+                                      setCreateForm((f) => ({ ...f, exclude_lead_ids: ids }))
+                                    }
+                                  }}
+                                />
+                              )}
+                            </div>
                           )}
-                        </select>
-                      </div>
-                      <span className="text-blue-500">—</span>
-                      <div>
-                        <div className="text-xs text-blue-500 mb-1">End</div>
-                        <select
-                          value={callingHours.end}
-                          onChange={(e) => {
-                            const newEnd = e.target.value;
-                            if (validateCallingHours(callingHours.start, newEnd)) {
-                              setCallingHours((h) => ({ ...h, end: newEnd }));
-                            } else {
-                              alert("End time must be after start time");
-                            }
-                          }}
-                          className="px-3 py-2 rounded-lg border border-blue-200 bg-white"
-                        >
-                          {Array.from({ length: 24 }).map((_, h) =>
-                            ["00", "30"].map((m) => {
-                              const val = `${String(h).padStart(2, "0")}:${m}`;
-                              return (
-                                <option key={`e-${val}`} value={val}>
-                                  {val}
-                                </option>
-                              );
-                            })
-                          )}
-                        </select>
-                      </div>
-                    </div>
-                  </div>
-                  <div>
-                    <div className="font-semibold mb-2 flex items-center gap-2 text-blue-700">
-                      <Globe2 className="w-5 h-5" />
-                      Timezone
-                    </div>
-                    <select
-                      value={timezone}
-                      onChange={(e) => setTimezone(e.target.value)}
-                      className="w-full px-3 py-2 rounded-lg border border-blue-200 bg-white"
-                    >
-                      {timezones.map((tz) => (
-                        <option key={tz.value} value={tz.value}>
-                          {tz.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+                        </div>
+                      )}
+                      {step === 4 && (
+                        <div className="space-y-4 sm:space-y-6">
+                          <div>
+                            <h3 className="text-base sm:text-lg font-semibold text-slate-900 mb-2">Schedule</h3>
+                            <p className="text-sm text-slate-600">Set up the schedule for your campaign.</p>
+                          </div>
+                          <div className="grid grid-cols-1 gap-3">
+                            <label className="block">
+                              <span className="mb-1 block text-sm font-semibold text-slate-700">Timezone (IANA)</span>
+                              <select
+                                name="timezone"
+                                value={createForm.timezone}
+                                onChange={onCreateChange}
+                                className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-slate-900 outline-none ring-1 ring-white/70 focus:ring-2 focus:ring-cyan-400/40"
+                              >
+                                {TIMEZONES.map((tz) => (
+                                  <option key={tz.value} value={tz.value}>
+                                    {tz.label}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
+                            <div>
+                              <div className="text-sm text-slate-700 mb-2">Days of week</div>
+                              <div className="flex flex-wrap gap-2">
+                                {[0, 1, 2, 3, 4, 5, 6].map((d) => (
+                                  <button
+                                    key={d}
+                                    type="button"
+                                    onClick={() => toggleDOW(d)}
+                                    className={cx(
+                                      "px-3 py-1.5 rounded-xl border text-sm",
+                                      createForm.days_of_week.includes(d)
+                                        ? "border-blue-400 bg-blue-50 text-blue-700"
+                                        : "border-slate-200 bg-white text-slate-700",
+                                    )}
+                                  >
+                                    {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"][d]}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                              <Field label="Daily start" name="daily_start" value={createForm.daily_start} onChange={onCreateChange} placeholder="HH:MM" />
+                              <Field label="Daily end" name="daily_end" value={createForm.daily_end} onChange={onCreateChange} placeholder="HH:MM" />
+                            </div>
+                            <div className="grid grid-cols-2 gap-3">
+                              <Field label="Start at (optional)" name="start_at" type="datetime-local" value={createForm.start_at} onChange={onCreateChange} />
+                              <Field label="End at (optional)" name="end_at" type="datetime-local" value={createForm.end_at} onChange={onCreateChange} />
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                      {step === 5 && (
+                        <div className="space-y-4 sm:space-y-6">
+                          <div>
+                            <h3 className="text-base sm:text-lg font-semibold text-slate-900 mb-2">Pacing</h3>
+                            <p className="text-sm text-slate-600">Set up the pacing for your campaign.</p>
+                          </div>
+                          <div className="grid grid-cols-1 gap-3">
+                            <Field label="Calls per minute" name="calls_per_minute" value={createForm.calls_per_minute} onChange={onCreateChange} />
+                            <Field label="Parallel calls" name="parallel_calls" value={createForm.parallel_calls} onChange={onCreateChange} />
+                            <label className="inline-flex items-center gap-2">
+                              <input type="checkbox" name="retry_on_busy" checked={!!createForm.retry_on_busy} onChange={onCreateChange} />
+                              <span className="text-sm text-slate-800">Retry on busy / no-answer</span>
+                            </label>
+                            <Field label="Busy retry delay (min)" name="busy_retry_delay_minutes" value={createForm.busy_retry_delay_minutes} onChange={onCreateChange} />
+                            <Field label="Max attempts" name="max_attempts" value={createForm.max_attempts} onChange={onCreateChange} />
+                          </div>
+                        </div>
+                      )}
+                      {step === 6 && (
+                        <div className="space-y-4 sm:space-y-6">
+                          <div>
+                            <h3 className="text-base sm:text-lg font-semibold text-slate-900 mb-2">Review</h3>
+                            <p className="text-sm text-slate-600">Review your campaign details before creating.</p>
+                          </div>
+                          <div className="grid grid-cols-1 gap-3">
+                            <div>
+                              <div className="text-sm font-semibold text-slate-700">Name</div>
+                              <div className="text-sm text-slate-600">{createForm.name || "—"}</div>
+                            </div>
+                            <div>
+                              <div className="text-sm font-semibold text-slate-700">File</div>
+                              <div className="text-sm text-slate-600">
+                                {files.find((f) => String(f.id) === String(createForm.file_id))?.name || "—"}
+                              </div>
+                            </div>
+                            <div>
+                              <div className="text-sm font-semibold text-slate-700">Assistant</div>
+                              <div className="text-sm text-slate-600">
+                                {assistants.find((a) => String(a.id) === String(createForm.assistant_id))?.name || "—"}
+                              </div>
+                            </div>
+                            <div>
+                              <div className="text-sm font-semibold text-slate-700">Schedule</div>
+                              <div className="text-sm text-slate-600">
+                                {dowLabel(createForm.days_of_week)} · {createForm.daily_start}–{createForm.daily_end} ({createForm.timezone})
+                              </div>
+                            </div>
+                            <div>
+                              <div className="text-sm font-semibold text-slate-700">Pacing</div>
+                              <div className="text-sm text-slate-600">
+                                {createForm.calls_per_minute} CPM · {createForm.parallel_calls} parallel
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </motion.div>
+                  </AnimatePresence>
                 </div>
 
-                <div className="flex justify-between mt-8">
-                  <button onClick={() => setStep(4)} className={cx(neon.btnGhost, "px-4 py-2 rounded-lg")}>
-                    Back
-                  </button>
-                  <button
-                    disabled={!validateCallingHours(callingHours.start, callingHours.end)}
-                    onClick={() => setStep(6)}
-                    className={cx(neon.btnPrimary, "px-4 py-2 rounded-lg disabled:opacity-50")}
-                  >
-                    Next
-                  </button>
+                {/* Modal Footer */}
+                <div className="sticky bottom-0 bg-white/95 backdrop-blur border-t border-slate-200 p-4 sm:p-6 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+                  <div className="flex items-center gap-2 order-2 sm:order-1">
+                    {step > 1 && (
+                      <ButtonGhost onClick={handleBack} icon={<ChevronLeft className="h-4 w-4" />}>
+                        <span className="hidden sm:inline">Previous</span>
+                        <span className="sm:hidden">Back</span>
+                      </ButtonGhost>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-2 order-1 sm:order-2">
+                    {step < 6 ? (
+                      <ButtonPrimary onClick={handleNext} icon={<ChevronRight className="h-4 w-4" />}>
+                        <span className="hidden sm:inline">Next Step</span>
+                        <span className="sm:hidden">Next</span>
+                      </ButtonPrimary>
+                    ) : (
+                      <ButtonPrimary onClick={createCampaign} disabled={creating} icon={creating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}>
+                        {creating ? "Creating..." : "Create Campaign"}
+                      </ButtonPrimary>
+                    )}
+                  </div>
                 </div>
               </div>
-            )}
-
-            {step === 6 && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className={cx(neon.card, "p-5")}>
-                  <div className="flex items-center gap-2 text-blue-700 font-bold text-lg mb-3">
-                    <ListChecks className="w-5 h-5" />
-                    Campaign Info
-                  </div>
-                  <div className="text-blue-900">
-                    <div className="mb-2">
-                      <span className="font-medium">Name:</span> {campaignName}
-                    </div>
-                    <div>
-                      <span className="font-medium">Assistant:</span>{" "}
-                      {assistants.find((a) => a.id === selectedAssistant)?.name || "-"}
-                    </div>
-                  </div>
-                </div>
-
-                <div className={cx(neon.card, "p-5")}>
-                  <div className="flex items-center gap-2 text-blue-700 font-bold text-lg mb-3">
-                    <User className="w-5 h-5" />
-                    Leads
-                  </div>
-                  <div className="text-blue-900">
-                    <div className="mb-2">
-                      <span className="font-medium">Selected:</span> {selectedLeads.length}
-                    </div>
-                    <div>
-                      <span className="font-medium">Skipped:</span>{" "}
-                      {Math.max(displayLeads.length - selectedLeads.length, 0)}
-                    </div>
-                  </div>
-                </div>
-
-                <div className={cx(neon.card, "p-5 md:col-span-2")}>
-                  <div className="flex items-center gap-2 text-blue-700 font-bold text-lg mb-3">
-                    <Calendar className="w-5 h-5" />
-                    Schedule
-                  </div>
-                  <div className="text-blue-900 space-y-2">
-                    <div>
-                      <span className="font-medium">Days:</span>{" "}
-                      {selectedDays.join(", ")}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium">Hours:</span>{" "}
-                      <Clock className="w-4 h-4 text-blue-600" />{" "}
-                      {callingHours.start} - {callingHours.end}
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium">Timezone:</span>{" "}
-                      <Globe2 className="w-4 h-4 text-blue-600" />{" "}
-                      {timezones.find((t) => t.value === timezone)?.label || timezone}
-                    </div>
-                    <div>
-                      <span className="font-medium">Start:</span> {campaignStartDate || "-"}
-                      {"  "}
-                      <span className="font-medium ml-4">End:</span> {campaignEndDate || "-"}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="flex justify-end md:col-span-2">
-                  <button onClick={() => setStep(5)} className={cx(neon.btnGhost, "px-4 py-2 rounded-lg mr-2")}>
-                    Back
-                  </button>
-                  <button
-                    disabled={creating || !validateCallingHours(callingHours.start, callingHours.end)}
-                    onClick={handleCreateOrUpdateCampaign}
-                    className={cx(neon.btnPrimary, "px-6 py-2 rounded-lg disabled:opacity-50")}
-                  >
-                    {creating ? (isEditMode ? "Updating..." : "Creating...") : isEditMode ? "Update Campaign" : "Create Campaign"}
-                  </button>
-                </div>
-              </div>
-            )}
-          </Modal>
+            </motion.div>
+          </>
         )}
+      </AnimatePresence>
 
-        {/* Delete confirm */}
-        <ConfirmModal
-          open={confirmOpen}
-          onClose={() => setConfirmOpen(false)}
-          onConfirm={doDelete}
-        >
-          Are you sure you want to delete this campaign? This action cannot be undone.
-        </ConfirmModal>
-      </div>
+      {/* Details Drawer */}
+      <AnimatePresence>
+        {showDetails && (
+          <>
+            <motion.div className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm" variants={overlay} initial="hidden" animate="show" exit="exit" onClick={() => setShowDetails(false)} />
+            <motion.section
+              className="fixed inset-y-0 right-0 z-50 w-full sm:w-[90vw] md:w-[620px] lg:w-[880px] bg-white shadow-2xl border-l border-slate-200 flex flex-col"
+              initial={{ x: "100%" }}
+              animate={{ x: 0, transition: { type: "spring", stiffness: 260, damping: 28 } }}
+              exit={{ x: "100%", transition: { duration: 0.2 } }}
+              aria-label="Campaign details"
+            >
+              {/* Topbar */}
+              <div className="sticky top-0 bg-white/90 backdrop-blur border-b border-slate-200 p-3 sm:p-4 flex items-center justify-between">
+                <div className="flex items-center gap-2 sm:gap-3 min-w-0 flex-1">
+                  <button onClick={() => setShowDetails(false)} className="grid h-8 w-8 sm:h-9 sm:w-9 place-items-center rounded-xl border border-slate-200 hover:bg-slate-50 flex-shrink-0" aria-label="Close">
+                    <X className="h-4 w-4 sm:h-5 sm:w-5" />
+                  </button>
+                  <div className="min-w-0 flex-1">
+                    <h3 className="text-base sm:text-lg font-bold leading-tight truncate">Campaign #{activeCampaign?.id}</h3>
+                    <p className="text-xs text-slate-600 truncate">{unknown(activeCampaign?.name)}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0">
+                  <ButtonGhost onClick={() => downloadICS(activeCampaign.id, activeCampaign?.name)} icon={<Download className="h-4 w-4" />}>
+                    <span className="hidden sm:inline">ICS</span>
+                  </ButtonGhost>
+                </div>
+              </div>
 
-      {/* small styles for inputs */}
-      <style>{`
-        .input {
-          border: none;
-          outline: none;
-        }
-      `}</style>
+              {/* Body */}
+              <div className="flex-1 overflow-y-auto p-3 sm:p-6">
+                {/* Info strip */}
+                <motion.div initial="hidden" animate="show" variants={stagger} className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+                  <motion.div variants={fadeUp} className="rounded-xl sm:rounded-2xl border border-slate-200 bg-white p-3 sm:p-4">
+                    <div className="text-xs uppercase tracking-wide text-slate-500 mb-1">Status</div>
+                    <StatusChip status={details?.status || activeCampaign?.status} />
+                  </motion.div>
+                  <motion.div variants={fadeUp} className="rounded-xl sm:rounded-2xl border border-slate-200 bg-white p-3 sm:p-4">
+                    <div className="text-xs uppercase tracking-wide text-slate-500 mb-1">Window</div>
+                    <div className="text-sm text-slate-800">
+                      <div className="truncate">{details ? dowLabel(details.days_of_week) : dowLabel(activeCampaign?.days_of_week)}</div>
+                      <div className="text-xs sm:text-sm">
+                        {(details?.daily_start || activeCampaign?.daily_start || "09:00") + "–" + (details?.daily_end || activeCampaign?.daily_end || "18:00")}
+                      </div>
+                      <div className="text-xs text-slate-500 truncate">{details?.timezone || activeCampaign?.timezone || "Local"}</div>
+                    </div>
+                  </motion.div>
+                  <motion.div variants={fadeUp} className="rounded-xl sm:rounded-2xl border border-slate-200 bg-white p-3 sm:p-4 sm:col-span-2 lg:col-span-1">
+                    <div className="text-xs uppercase tracking-wide text-slate-500 mb-1">Counts</div>
+                    <div className="text-sm text-slate-800">
+                      <div>Total: {details?.totals?.total ?? activeCampaign?.counts?.total ?? "—"}</div>
+                      <div>Done: {details?.totals?.done ?? activeCampaign?.counts?.completed_or_failed ?? "—"}</div>
+                    </div>
+                  </motion.div>
+                </motion.div>
+
+                {/* Controls */}
+                <motion.div initial="hidden" animate="show" variants={fadeUp} className="mt-4 flex flex-wrap items-center gap-2">
+                  {String(details?.status || activeCampaign?.status).toLowerCase() === "paused" ? (
+                    <ButtonPrimary onClick={() => doResume(activeCampaign.id)} icon={<Play className="h-4 w-4" />}>
+                      <span className="hidden sm:inline">Resume</span>
+                    </ButtonPrimary>
+                  ) : (
+                    <ButtonPrimary onClick={() => doPause(activeCampaign.id)} icon={<Pause className="h-4 w-4" />}>
+                      <span className="hidden sm:inline">Pause</span>
+                    </ButtonPrimary>
+                  )}
+                  <ButtonGhost onClick={() => doStop(activeCampaign.id)} icon={<StopSquare className="h-4 w-4" />}>
+                    <span className="hidden sm:inline">Stop</span>
+                  </ButtonGhost>
+                  <ButtonGhost onClick={() => doDelete(activeCampaign.id)} icon={<Trash2 className="h-4 w-4" />}>
+                    <span className="hidden sm:inline">Delete</span>
+                  </ButtonGhost>
+                </motion.div>
+
+                {/* Schedule + Retry forms */}
+                <motion.div initial="hidden" animate="show" variants={stagger} className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
+                  <motion.div variants={fadeUp}>
+                    <ScheduleForm details={details} onSubmit={(form) => updateSchedule(activeCampaign.id, form)} loading={detailsLoading} />
+                  </motion.div>
+                  <motion.div variants={fadeUp}>
+                    <RetryForm details={details} onSubmit={(form) => updateRetryPolicy(activeCampaign.id, form)} loading={detailsLoading} />
+                  </motion.div>
+                </motion.div>
+
+                {/* Run now */}
+                <motion.div initial="hidden" animate="show" variants={fadeUp}>
+                  <RunNowCard onRun={(n) => doRunNow(activeCampaign.id, n)} />
+                </motion.div>
+              </div>
+            </motion.section>
+          </>
+        )}
+      </AnimatePresence>
     </div>
-  );
-};
+  )
+}
 
-/* simple table cells */
-const Th = ({ children, tight }) => (
-  <th className={cx("px-6 py-4 text-sm font-semibold text-center", tight && "w-[60px]")}>
-    {children}
-  </th>
-);
-const Td = ({ children, tight }) => (
-  <td className={cx("px-6 py-4 text-sm text-center text-blue-900", tight && "w-[60px]")}>{children}</td>
-);
-const IconBtn = ({ title, onClick, children }) => (
-  <button
-    title={title}
-    onClick={onClick}
-    className="p-2 rounded-lg border border-blue-200 hover:bg-blue-50 text-blue-700"
-  >
-    {children}
-  </button>
-);
+/* ─────────────────────────── Subcomponents ─────────────────────────── */
 
-export default Campain;
+function RunNowCard({ onRun }) {
+  const [n, setN] = useState(5)
+  return (
+    <div className="mt-6 rounded-2xl border border-slate-200 bg-white p-4">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+        <div className="font-semibold text-slate-800 flex items-center gap-2">
+          <Rocket className="h-4 w-4" />
+          Run Now
+        </div>
+        <div className="flex items-center gap-2">
+          <input type="number" min={1} className="w-24 rounded-xl border border-slate-200 px-3 py-2 text-sm" value={n} onChange={(e) => setN(Number(e.target.value) || 5)} />
+          <ButtonPrimary onClick={() => onRun(n)} icon={<Play className="h-4 w-4" />}>
+            Trigger
+          </ButtonPrimary>
+        </div>
+      </div>
+      <p className="text-sm text-slate-600 mt-2">Immediately place a small batch of calls (ignores schedule window).</p>
+    </div>
+  )
+}
+
+function ScheduleForm({ details, onSubmit, loading }) {
+  const [form, setForm] = useState({
+    timezone: details?.timezone || "America/Los_Angeles",
+    days_of_week: details?.days_of_week || [0, 1, 2, 3, 4],
+    daily_start: details?.daily_start || "09:00",
+    daily_end: details?.daily_end || "18:00",
+    start_at: toInputDateTimeLocal(details?.start_at),
+    end_at: toInputDateTimeLocal(details?.end_at),
+  })
+  useEffect(() => {
+    setForm({
+      timezone: details?.timezone || "America/Los_Angeles",
+      days_of_week: details?.days_of_week || [0, 1, 2, 3, 4],
+      daily_start: details?.daily_start || "09:00",
+      daily_end: details?.daily_end || "18:00",
+      start_at: toInputDateTimeLocal(details?.start_at),
+      end_at: toInputDateTimeLocal(details?.end_at),
+    })
+  }, [details])
+
+  function onChange(e) {
+    const { name, value } = e.target
+    setForm((f) => ({ ...f, [name]: value }))
+  }
+  function toggleDOW(d) {
+    setForm((f) => {
+      const has = f.days_of_week.includes(d)
+      const days = has ? f.days_of_week.filter((x) => x !== d) : [...f.days_of_week, d]
+      days.sort((a, b) => a - b)
+      return { ...f, days_of_week: days }
+    })
+  }
+
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white p-4">
+      <div className="font-semibold text-slate-800 mb-3 flex items-center gap-2">
+        <Settings className="h-4 w-4" />
+        Schedule
+      </div>
+      <div className="grid grid-cols-1 gap-3">
+        <label className="block">
+          <span className="mb-1 block text-sm font-semibold text-slate-700">Timezone (IANA)</span>
+          <select name="timezone" value={form.timezone} onChange={onChange} className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-slate-900 outline-none ring-1 ring-white/70 focus:ring-2 focus:ring-cyan-400/40">
+            {TIMEZONES.map((tz) => (
+              <option key={tz.value} value={tz.value}>
+                {tz.label}
+              </option>
+            ))}
+          </select>
+        </label>
+        <div>
+          <div className="text-sm text-slate-700 mb-2">Days of week</div>
+          <div className="flex flex-wrap gap-2">
+            {[0, 1, 2, 3, 4, 5, 6].map((d) => (
+              <button
+                key={d}
+                type="button"
+                onClick={() => toggleDOW(d)}
+                className={cx(
+                  "px-3 py-1.5 rounded-xl border text-sm",
+                  form.days_of_week.includes(d) ? "border-blue-400 bg-blue-50 text-blue-700" : "border-slate-200 bg-white text-slate-700",
+                )}
+              >
+                {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"][d]}
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Daily start" name="daily_start" value={form.daily_start} onChange={onChange} placeholder="HH:MM" />
+          <Field label="Daily end" name="daily_end" value={form.daily_end} onChange={onChange} placeholder="HH:MM" />
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Start at (optional)" name="start_at" type="datetime-local" value={form.start_at} onChange={onChange} />
+          <Field label="End at (optional)" name="end_at" type="datetime-local" value={form.end_at} onChange={onChange} />
+        </div>
+        <div className="flex justify-end">
+          <ButtonPrimary onClick={() => onSubmit(form)} disabled={loading}>
+            Save Schedule
+          </ButtonPrimary>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function RetryForm({ details, onSubmit, loading }) {
+  const [form, setForm] = useState({
+    retry_on_busy: details?.retry_on_busy ?? true,
+    busy_retry_delay_minutes: details?.busy_retry_delay_minutes ?? 15,
+    max_attempts: details?.max_attempts ?? 3,
+  })
+  useEffect(() => {
+    setForm({
+      retry_on_busy: details?.retry_on_busy ?? true,
+      busy_retry_delay_minutes: details?.busy_retry_delay_minutes ?? 15,
+      max_attempts: details?.max_attempts ?? 3,
+    })
+  }, [details])
+
+  function onChange(e) {
+    const { name, value, type, checked } = e.target
+    setForm((f) => ({ ...f, [name]: type === "checkbox" ? checked : value }))
+  }
+
+  return (
+    <div className="rounded-2xl border border-slate-200 bg-white p-4">
+      <div className="font-semibold text-slate-800 mb-3 flex items-center gap-2">
+        <Rocket className="h-4 w-4" />
+        Retry Policy
+      </div>
+      <div className="grid grid-cols-1 gap-3">
+        <label className="inline-flex items-center gap-2">
+          <input type="checkbox" name="retry_on_busy" checked={!!form.retry_on_busy} onChange={onChange} />
+          <span className="text-sm text-slate-800">Retry on busy / no-answer</span>
+        </label>
+        <Field label="Busy retry delay (min)" name="busy_retry_delay_minutes" value={form.busy_retry_delay_minutes} onChange={onChange} />
+        <Field label="Max attempts" name="max_attempts" value={form.max_attempts} onChange={onChange} />
+        <div className="flex justify-end">
+          <ButtonPrimary onClick={() => onSubmit(form)} disabled={loading}>
+            Save Retry Policy
+          </ButtonPrimary>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+/* Lead MultiSelect for ONLY/SKIP */
+function LeadMultiSelect({ leads, mode, search, selectedIds, onChange }) {
+  const [page, setPage] = useState(1)
+  const pageSize = 12
+
+  const filtered = useMemo(() => {
+    const q = (search || "").toLowerCase().trim()
+    if (!q) return leads
+    return leads.filter((l) => {
+      const name = `${l.first_name || ""} ${l.last_name || ""}`.toLowerCase()
+      return name.includes(q) || (l.email || "").toLowerCase().includes(q) || (l.mobile || "").toLowerCase().includes(q)
+    })
+  }, [leads, search])
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize))
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages)
+  }, [page, totalPages])
+
+  const start = (page - 1) * pageSize
+  const end = start + pageSize
+  const slice = filtered.slice(start, end)
+
+  function toggle(id) {
+    const has = selectedIds.includes(id)
+    if (has) onChange(selectedIds.filter((x) => x !== id))
+    else onChange([...selectedIds, id])
+  }
+
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white">
+      <div className="max-h-72 overflow-y-auto divide-y divide-slate-100">
+        {slice.length === 0 ? (
+          <div className="p-4 text-sm text-slate-600">No leads match your search.</div>
+        ) : (
+          slice.map((l) => {
+            const nameFull = `${l.first_name || ""} ${l.last_name || ""}`.trim() || "Unknown"
+            return (
+              <label key={l.id} className="flex items-center gap-3 p-3 hover:bg-slate-50 cursor-pointer">
+                <input type="checkbox" checked={selectedIds.includes(l.id)} onChange={() => toggle(l.id)} />
+                <div className="min-w-0">
+                  <div className="font-medium text-slate-900 text-sm">{nameFull}</div>
+                  <div className="text-xs text-slate-600 break-all">{(l.email || "—") + " · " + (l.mobile || "—")}</div>
+                </div>
+                {l.dnc ? <Chip tone="red">DNC</Chip> : <Chip tone="green">OK</Chip>}
+              </label>
+            )
+          })
+        )}
+      </div>
+      {filtered.length > pageSize && (
+        <div className="flex items-center justify-between p-2">
+          <span className="text-xs text-slate-600">Showing {Math.min(end, filtered.length)} of {filtered.length}</span>
+          <div className="flex items-center gap-2">
+            <PagerButton disabled={page <= 1} onClick={() => setPage((p) => Math.max(1, p - 1))}>
+              <ChevronLeft className="h-3.5 w-3.5" /> Prev
+            </PagerButton>
+            <span className="text-xs text-slate-700">{page}/{totalPages}</span>
+            <PagerButton disabled={page >= totalPages} onClick={() => setPage((p) => Math.min(totalPages, p + 1))}>
+              Next <ChevronRight className="h-3.5 w-3.5" />
+            </PagerButton>
+          </div>
+        </div>
+      )}
+      <div className="p-3 border-t border-slate-200 text-xs text-slate-700">
+        Mode: <strong>{mode}</strong> · Selected: <strong>{selectedIds.length}</strong>
+      </div>
+    </div>
+  )
+}
+
+/* Helpers / small UI bits */
+function dowLabel(days) {
+  const map = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+  const set = new Set(Array.isArray(days) ? days : [])
+  if (set.size === 5 && [0, 1, 2, 3, 4].every((d) => set.has(d))) return "Mon–Fri"
+  if (set.size === 7) return "Every day"
+  return Array.from(set)
+    .sort((a, b) => a - b)
+    .map((d) => map[d] || "?")
+    .join(", ")
+}
+
+function setSort(nextKey, setKey, setDir) {
+  setKey((prevKey) => {
+    if (prevKey === nextKey) {
+      setDir((d) => (d === "asc" ? "desc" : "asc"))
+      return prevKey
+    } else {
+      setDir(nextKey === "created_at" ? "desc" : "asc")
+      return nextKey
+    }
+  })
+}
+
+function ButtonPrimary({ children, onClick, disabled, icon, type = "button" }) {
+  return (
+    <motion.button
+      whileHover={!disabled ? { scale: 1.02 } : undefined}
+      whileTap={!disabled ? { scale: 0.98 } : undefined}
+      type={type}
+      onClick={onClick}
+      disabled={disabled}
+      className={cx(
+        "inline-flex items-center gap-2 rounded-xl sm:rounded-2xl px-3 sm:px-3.5 py-2 sm:py-2.5 text-sm font-semibold text-white transition-all duration-200",
+        "bg-gradient-to-r from-blue-600 to-cyan-600 hover:from-blue-500 hover:to-cyan-500 active:from-blue-700 active:to-cyan-700",
+        "shadow-[0_8px_24px_-12px_rgba(37,99,235,0.55)] hover:shadow-[0_12px_32px_-12px_rgba(37,99,235,0.65)]",
+        "disabled:opacity-60 disabled:cursor-not-allowed disabled:hover:scale-100",
+      )}
+    >
+      {icon}
+      <span className="whitespace-nowrap">{children}</span>
+    </motion.button>
+  )
+}
+
+function ButtonGhost({ children, onClick, icon, type = "button", disabled }) {
+  return (
+    <motion.button
+      whileHover={!disabled ? { scale: 1.02 } : undefined}
+      whileTap={!disabled ? { scale: 0.98 } : undefined}
+      type={type}
+      onClick={onClick}
+      disabled={disabled}
+      className={cx(
+        "inline-flex items-center gap-2 rounded-xl sm:rounded-2xl border border-slate-200 bg-white px-3 sm:px-3.5 py-2 sm:py-2.5 text-sm font-medium text-slate-800 ring-1 ring-white/70 transition-all duration-200 hover:bg-slate-50 hover:shadow-sm",
+        disabled && "opacity-60 cursor-not-allowed",
+      )}
+    >
+      {icon}
+      <span className="whitespace-nowrap">{children}</span>
+    </motion.button>
+  )
+}
+
+function PagerButton({ children, disabled, onClick }) {
+  return (
+    <motion.button
+      whileHover={!disabled ? { scale: 1.02 } : undefined}
+      whileTap={!disabled ? { scale: 0.98 } : undefined}
+      disabled={disabled}
+      onClick={onClick}
+      className={cx(
+        "inline-flex items-center gap-1 sm:gap-2 rounded-xl sm:rounded-2xl border px-2.5 sm:px-3.5 py-1.5 sm:py-2 text-xs sm:text-sm transition-all duration-200",
+        disabled ? "cursor-not-allowed border-slate-200 text-slate-400 bg-white" : "border-slate-300 bg-white text-slate-800 hover:bg-slate-50 hover:shadow-sm",
+      )}
+    >
+      {children}
+    </motion.button>
+  )
+}
+
+function Th({ children, sortKey, sortBy, sortDir, onSort }) {
+  const active = sortBy === sortKey
+  return (
+    <th className={cx("px-5 py-3 font-semibold select-none cursor-pointer", active && "text-slate-900")} onClick={() => onSort(sortKey)} title="Sort">
+      <span className="inline-flex items-center gap-1">
+        {children}
+        <span className={cx("text-xs", active ? "opacity-100" : "opacity-20")}>{active ? (sortDir === "asc" ? "▲" : "▼") : "▲"}</span>
+      </span>
+    </th>
+  )
+}
+function RowSkeleton({ rows = 6, cols = 6 }) {
+  return (
+    <>
+      {Array.from({ length: rows }).map((_, r) => (
+        <tr key={r} className="animate-pulse">
+          {Array.from({ length: cols }).map((__, c) => (
+            <td key={c} className="px-5 py-3">
+              <div className="h-4 w-28 rounded bg-slate-100" />
+            </td>
+          ))}
+        </tr>
+      ))}
+    </>
+  )
+}
+function Field({ label, name, value, onChange, type = "text", placeholder, className }) {
+  return (
+    <label className={cx("block", className)}>
+      <span className="mb-1 block text-sm font-semibold text-slate-700">{label}</span>
+      <input
+        type={type}
+        name={name}
+        value={value ?? ""}
+        onChange={onChange}
+        placeholder={placeholder}
+        className="w-full rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-slate-900 placeholder-slate-400 outline-none ring-1 ring-white/70 focus:ring-2 focus:ring-cyan-400/40 focus:border-cyan-300"
+      />
+    </label>
+  )
+}
+
+
+
+
+
+
+
+
