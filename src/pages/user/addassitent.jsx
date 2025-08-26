@@ -3371,9 +3371,9 @@ export default function CreateAssistant() {
     name: "",
     provider: "openai",
     model: "gpt-4o-mini",
-    temperature: 0.6,     // ⬅️ slightly lower for faster/more focused replies
-    maxTokens: 200,       // ⬅️ smaller for snappier turns
-    systemPrompt: "",     // user-supplied only; we append to BASE_VAPI_PROMPT on submit
+    temperature: 0.6,    
+    maxTokens: 200,      
+    systemPrompt: "",     
     first_message: "",    // you can prefill if you like (assistant speaks first in VAPI)
     transcribe_provider: "google",
     transcribe_language: "English",

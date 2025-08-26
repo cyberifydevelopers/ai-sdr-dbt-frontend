@@ -26,6 +26,7 @@ import Leadsid from "./pages/user/leadid";
 import Lead from "./pages/user/lead";
 import UploadCSV from "./pages/user/upload-csv";
 import Campain from "./pages/user/Campain"; // ✅ NEW: Campaigns page
+import CRM from "./pages/user/CRM";
 
 // ===== Admin Routes =====
 import Layoutadmin from "./layout/layoutadmin";
@@ -91,6 +92,14 @@ function App() {
               element={
                 <IsUser>
                   <Settings />
+                </IsUser>
+              }
+            />
+            <Route
+              path="CRM"
+              element={
+                <IsUser>
+                  <CRM />
                 </IsUser>
               }
             />
