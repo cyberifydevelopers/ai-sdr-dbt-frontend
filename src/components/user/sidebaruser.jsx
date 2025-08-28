@@ -574,6 +574,7 @@ import {
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
+import { FaUsers, FaHandshake } from "react-icons/fa";
 import { useLocation, useNavigate } from "react-router-dom";
 import { FaRobot } from "react-icons/fa";
 import { motion } from "framer-motion";
@@ -710,7 +711,7 @@ export default function Sidebar() {
     { id: "Leads", label: "Leads", icon: Users, href: "/user/leads", color: "text-purple-600" },
     { id: "Campain", label: "Campaigns", icon: Calendar, href: "/user/campain", color: "text-blue-600" },
     { id: "settings", label: "Settings", icon: Settings, href: "/user/settings", color: "text-gray-600" },
-    { id: "CRM", label: "CRMS", icon: Settings, href: "/user/CRM", color: "text-orange-600" },
+    { id: "CRM", label: "CRMS", icon: FaHandshake, href: "/user/CRM", color: "text-orange-600" },
 
    
   ];
