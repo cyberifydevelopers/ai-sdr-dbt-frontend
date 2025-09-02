@@ -1067,7 +1067,7 @@ const GENDER_OPTIONS = [
 export default function EditAssistant() {
   const { assistantId } = useParams();
   const navigate = useNavigate();
-  const API_URL = import.meta.env?.VITE_API_URL || "http://localhost:8000";
+  const API_URL = import.meta.env?.VITE_API_URL ;
 
   // ---------- UI ----------
   const [currentStep, setCurrentStep] = useState(1);

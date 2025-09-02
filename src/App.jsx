@@ -27,7 +27,7 @@ import Lead from "./pages/user/lead";
 import UploadCSV from "./pages/user/upload-csv";
 import Campain from "./pages/user/Campain"; // ✅ NEW: Campaigns page
 import CRM from "./pages/user/CRM";
-
+import Appointments from "./pages/user/appointments";
 // ===== Admin Routes =====
 import Layoutadmin from "./layout/layoutadmin";
 import Adminusers from "./pages/admin/users";
@@ -46,6 +46,7 @@ import Stats from "./pages/user/Stats";
 // ===== Route Guards =====
 import IsUser from "./authntication/isuser";
 import Isadmin from "./authntication/isadmin";
+
 
 function App() {
   return (
@@ -70,7 +71,14 @@ function App() {
                 </IsUser>
               }
             />
-
+            <Route
+              path="Appointments"
+              element={
+                <IsUser>
+                  <Appointments />
+                </IsUser>
+              }
+            />
             <Route
               path="PhoneCalls"
               element={
@@ -170,7 +178,9 @@ function App() {
                 </IsUser>
               }
             />
+          
           </Route>
+
 
           {/* ===== Admin Protected Routes ===== */}
           <Route path="/admin" element={<Layoutadmin />}>

@@ -574,11 +574,11 @@ import {
   ChevronLeft,
   ChevronRight,
 } from "lucide-react";
-import { FaUsers, FaHandshake } from "react-icons/fa";
+import { FaUsers, FaHandshake ,} from "react-icons/fa";
 import { useLocation, useNavigate } from "react-router-dom";
 import { FaRobot } from "react-icons/fa";
 import { motion } from "framer-motion";
-
+import { CalendarRange } from "lucide-react";
 /* ---------------- Typewriter Banner ---------------- */
 function TypewriterBanner({ compact = false }) {
   const items = useMemo(
@@ -712,6 +712,7 @@ export default function Sidebar() {
     { id: "Campain", label: "Campaigns", icon: Calendar, href: "/user/campain", color: "text-blue-600" },
     { id: "settings", label: "Settings", icon: Settings, href: "/user/settings", color: "text-gray-600" },
     { id: "CRM", label: "CRMS", icon: FaHandshake, href: "/user/CRM", color: "text-orange-600" },
+    {id: "Appointments" , label : "Appointments" , icon : CalendarRange , href: "/user/Appointments" , color:"text-purple-600" }
 
    
   ];
